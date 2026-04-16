@@ -22,4 +22,9 @@ let fileOffset = 0;
 let fileStartedAt = 0;
 let filePlaying = false;
 
+let audioDestination = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
 let t = 0;

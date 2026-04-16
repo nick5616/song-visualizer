@@ -69,6 +69,49 @@ document.getElementById('micBtn').addEventListener('click', async () => {
   }
 });
 
+// ---- Recording ----
+function getBestMimeType() {
+  const types = [
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+function getExtension(mimeType) {
+  return mimeType.startsWith('video/mp4') ? '.mp4' : '.webm';
+}
+
+function startRecording() {
+  if (isRecording || !audioDestination) return;
+  const canvasStream = canvas.captureStream(30);
+  const combined = new MediaStream([
+    ...canvasStream.getVideoTracks(),
+    ...audioDestination.stream.getAudioTracks(),
+  ]);
+  recordedChunks = [];
+  const mimeType = getBestMimeType();
+  mediaRecorder = new MediaRecorder(combined, mimeType ? { mimeType } : {});
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
+  mediaRecorder.start(100);
+  isRecording = true;
+}
+
+function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    isRecording = false;
+    return;
+  }
+  isRecording = false;
+  mediaRecorder.onstop = () => updateFileUI();
+  mediaRecorder.stop();
+}
+
 // ---- MP3 file audio ----
 function stopFileAudio() {
   if (fileSource) {
@@ -81,14 +124,18 @@ function stopFileAudio() {
   filePlaying = false;
   fileOffset = 0;
   fileStartedAt = 0;
+  stopRecording();
 }
 
 function updateFileUI() {
   const row = document.getElementById('playbackRow');
-  const btn = document.getElementById('playPauseBtn');
+  const playBtn = document.getElementById('playPauseBtn');
+  const dlBtn = document.getElementById('downloadBtn');
   if (!audioBuffer) { row.style.display = 'none'; return; }
   row.style.display = 'grid';
-  btn.textContent = filePlaying ? '⏸ Pause' : '▶ Play';
+  playBtn.textContent = filePlaying ? '⏸ Pause' : '▶ Play';
+  const showDownload = isRecording || recordedChunks.length > 0;
+  dlBtn.style.display = showDownload ? 'block' : 'none';
 }
 
 function playFileAudio() {
@@ -97,10 +144,12 @@ function playFileAudio() {
   fileSource = audioCtx.createBufferSource();
   fileSource.buffer = audioBuffer;
   fileSource.connect(analyser);
+  fileSource.connect(audioDestination);
   fileSource.start(0, fileOffset);
   fileStartedAt = audioCtx.currentTime - fileOffset;
   fileAudioActive = true;
   filePlaying = true;
+  if (!isRecording) startRecording();
   fileSource.onended = () => {
     if (filePlaying) { stopFileAudio(); updateFileUI(); }
   };
@@ -125,6 +174,7 @@ document.getElementById('mp3Input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   stopFileAudio();
+  recordedChunks = [];
   ensureAudioCtx();
   const nameEl = document.getElementById('trackName');
   nameEl.textContent = 'loading…';
@@ -155,6 +205,36 @@ document.getElementById('playPauseBtn').addEventListener('click', () => {
 document.getElementById('stopBtn').addEventListener('click', () => {
   stopFileAudio();
   updateFileUI();
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const name = document.getElementById('trackName').textContent || 'visualization';
+  const mimeType = getBestMimeType() || 'video/webm';
+
+  const save = () => {
+    if (!recordedChunks.length) return;
+    const blob = new Blob(recordedChunks, { type: mimeType.split(';')[0] });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name + getExtension(mimeType);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    recordedChunks = [];
+    // Restart recording if song is still playing
+    if (filePlaying) startRecording();
+    updateFileUI();
+  };
+
+  if (isRecording) {
+    mediaRecorder.onstop = save;
+    isRecording = false;
+    mediaRecorder.stop();
+  } else {
+    save();
+  }
 });
 
 // ---- Fullscreen ----

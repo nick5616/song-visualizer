@@ -5,6 +5,7 @@ function ensureAudioCtx() {
     analyser.fftSize = 256;
     audioData = new Uint8Array(analyser.frequencyBinCount);
     analyser.connect(audioCtx.destination);
+    audioDestination = audioCtx.createMediaStreamDestination();
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
