@@ -245,6 +245,27 @@ const PRODUCER_FONT = '"JetBrains Mono", "SF Mono", Menlo, monospace';
 const IMPROV_FONT = '"Bitcount Grid Double", "JetBrains Mono", monospace';
 const UI_FONT = '"JetBrains Mono", monospace';
 
+const COMPOSER_PX_PER_BEAT = 100;
+const COMPOSER_BRACKET_H = 22;
+const COMPOSER_DURATIONS = [
+  { beats: 4, label: "whole" },
+  { beats: 2, label: "half" },
+  { beats: 1, label: "quarter" },
+  { beats: 0.5, label: "8th" },
+  { beats: 0.25, label: "16th" },
+];
+const voiceChordNear = (pcs, centerPitch) =>
+  pcs.map(pc => {
+    let best = null, bestDist = Infinity;
+    for (let oct = 2; oct <= 7; oct++) {
+      const midi = oct * 12 + pc;
+      if (midi < 36 || midi > 96) continue;
+      const d = Math.abs(midi - centerPitch);
+      if (d < bestDist) { bestDist = d; best = midi; }
+    }
+    return best;
+  }).filter(n => n !== null);
+
 const ctrlStyle = {
   padding: "4px 8px", background: "#15151a", color: "#d0d0d8",
   border: "1px solid #2a2a35", borderRadius: 3, fontSize: 11,
@@ -286,6 +307,13 @@ function MidiMuse() {
   const [drag, setDrag] = useState(null);
   const [inputMode, setInputMode] = useState("midi");
   const [voicePitch, setVoicePitch] = useState(null);
+  const [composerNotes, setComposerNotes] = useState([]);
+  const [composerCursor, setComposerCursor] = useState(0);
+  const [composerDuration, setComposerDuration] = useState(1);
+  const [composerBracket, setComposerBracket] = useState({ startBeat: 0, endBeat: 4 });
+  const [composerScrollX, setComposerScrollX] = useState(0);
+  const [bracketDragState, setBracketDragState] = useState(null);
+  const [isComposerPlaying, setIsComposerPlaying] = useState(false);
 
   const recordStartRef = useRef(null);
   const activeNotesRef = useRef(new Map());
@@ -301,8 +329,17 @@ function MidiMuse() {
   const voiceProcessorRef = useRef(null);
   const voiceActivePitchRef = useRef(null);
   const voiceStableRef = useRef({ pitch: null, count: 0 });
+  const composerCanvasRef = useRef(null);
+  const viewRef = useRef("producer");
+  const composerCursorRef = useRef(0);
+  const composerDurationRef = useRef(1);
+  const composerPlayTimeoutsRef = useRef([]);
+  const composerPlayStartRef = useRef(null);
 
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+  useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => { composerCursorRef.current = composerCursor; }, [composerCursor]);
+  useEffect(() => { composerDurationRef.current = composerDuration; }, [composerDuration]);
 
   useEffect(() => {
     if (document.querySelector('link[data-midimuse-fonts]')) return;
@@ -457,6 +494,9 @@ function MidiMuse() {
     activeNotesRef.current.set(pitch, { startTime: t, velocity });
     setActiveNotes(new Map(activeNotesRef.current));
     visualEventsRef.current.push({ id: Math.random(), pitch, velocity, startTime: t, releaseTime: null, finalized: false });
+    if (viewRef.current === "composer") {
+      setComposerNotes(prev => [...prev, { id: `${t}-${pitch}-${Math.random()}`, pitch, velocity, startBeat: composerCursorRef.current, durationBeats: composerDurationRef.current }]);
+    }
   }, []);
 
   const handleNoteOff = useCallback((pitch) => {
@@ -466,7 +506,7 @@ function MidiMuse() {
     if (active) {
       activeNotesRef.current.delete(pitch);
       setActiveNotes(new Map(activeNotesRef.current));
-      if (isRecordingRef.current && recordStartRef.current !== null) {
+      if (isRecordingRef.current && viewRef.current !== "composer" && recordStartRef.current !== null) {
         setNotes((prev) => [...prev, { id: `${t}-${pitch}-${Math.random()}`, pitch, velocity: active.velocity, startTime: active.startTime - recordStartRef.current, endTime: t - recordStartRef.current }]);
       }
     }
@@ -492,6 +532,69 @@ function MidiMuse() {
   };
   const clearNotes = () => { setNotes([]); setSelectedNoteId(null); setScrollX(0); recordStartRef.current = null; };
 
+  const advanceCursor = useCallback((beats) => {
+    const newCursor = composerCursorRef.current + beats;
+    composerCursorRef.current = newCursor;
+    setComposerCursor(newCursor);
+    setComposerBracket(bracket => {
+      const width = bracket.endBeat - bracket.startBeat;
+      if (newCursor >= bracket.endBeat) return { startBeat: Math.max(0, newCursor - width), endBeat: newCursor };
+      return bracket;
+    });
+    if (composerCanvasRef.current) {
+      const vw = composerCanvasRef.current.clientWidth - PRODUCER_KEYBOARD_WIDTH;
+      const cursorPx = newCursor * COMPOSER_PX_PER_BEAT;
+      setComposerScrollX(sx => cursorPx > sx + vw - 150 ? Math.max(0, cursorPx - vw + 150) : sx);
+    }
+  }, []);
+
+  const acceptSuggestion = useCallback((nc, avgPitch) => {
+    const pitches = voiceChordNear(nc.pcs, avgPitch);
+    const startBeat = composerCursorRef.current;
+    const dur = composerDurationRef.current;
+    setComposerNotes(prev => [...prev, ...pitches.map(pitch => ({
+      id: `${Date.now()}-${pitch}-${Math.random()}`, pitch, velocity: 90, startBeat, durationBeats: dur,
+    }))]);
+    if (synthRef.current && window.Tone) {
+      window.Tone.start();
+      for (const p of pitches) synthRef.current.triggerAttack(window.Tone.Frequency(p, "midi").toFrequency(), undefined, 0.7);
+      setTimeout(() => { for (const p of pitches) synthRef.current?.triggerRelease(window.Tone.Frequency(p, "midi").toFrequency()); }, 600);
+    }
+  }, []);
+
+  const stopComposerPlayback = useCallback(() => {
+    for (const id of composerPlayTimeoutsRef.current) clearTimeout(id);
+    composerPlayTimeoutsRef.current = [];
+    composerPlayStartRef.current = null;
+    synthRef.current?.releaseAll?.();
+    setIsComposerPlaying(false);
+  }, []);
+
+  const playComposerFromCursor = useCallback(() => {
+    stopComposerPlayback();
+    if (!synthRef.current || !window.Tone || composerNotes.length === 0) return;
+    window.Tone.start();
+    const startBeat = composerCursorRef.current;
+    const beatMs = (60 / bpm) * 1000;
+    const toPlay = composerNotes.filter(n => n.startBeat >= startBeat);
+    if (toPlay.length === 0) return;
+    composerPlayStartRef.current = { wallTime: performance.now(), beat: startBeat };
+    for (const n of toPlay) {
+      const delayMs = (n.startBeat - startBeat) * beatMs;
+      const durMs = n.durationBeats * beatMs;
+      const freq = window.Tone.Frequency(n.pitch, "midi").toFrequency();
+      composerPlayTimeoutsRef.current.push(
+        setTimeout(() => synthRef.current?.triggerAttack(freq, undefined, n.velocity / 127), delayMs),
+        setTimeout(() => synthRef.current?.triggerRelease(freq), delayMs + durMs)
+      );
+    }
+    const lastBeat = Math.max(...toPlay.map(n => n.startBeat + n.durationBeats));
+    composerPlayTimeoutsRef.current.push(
+      setTimeout(() => { composerPlayStartRef.current = null; setIsComposerPlaying(false); }, (lastBeat - startBeat) * beatMs + 150)
+    );
+    setIsComposerPlaying(true);
+  }, [composerNotes, bpm, stopComposerPlayback]);
+
   const context = useMemo(() => {
     const allNotes = [];
     const baseTime = recordStartRef.current || 0;
@@ -509,6 +612,21 @@ function MidiMuse() {
     const suggestions = suggestNotes(chord, nextChords, keyRoot, mode);
     return { contextNotes, pcWeights, chord, nextChords, suggestions };
   }, [notes, activeNotes, keyRoot, mode]);
+
+  const composerContext = useMemo(() => {
+    if (view !== "composer") return null;
+    const bracketNotes = composerNotes.filter(n => n.startBeat >= composerBracket.startBeat && n.startBeat < composerBracket.endBeat);
+    const empty = { contextNotes: [], pcWeights: new Map(), chord: null, nextChords: [], suggestions: suggestNotes(null, [], keyRoot, mode), avgPitch: 60 };
+    if (bracketNotes.length === 0) return empty;
+    const asTimedNotes = bracketNotes.map(n => ({ pitch: n.pitch, velocity: n.velocity, startTime: n.startBeat }));
+    const contextNotes = selectContextNotes(asTimedNotes);
+    const pcWeights = computePcWeightsFlat(contextNotes);
+    const chord = inferChord(pcWeights, keyRoot, mode);
+    const nextChords = chord?.roman ? predictNextChords(chord.roman, keyRoot, mode) : [];
+    const suggestions = suggestNotes(chord, nextChords, keyRoot, mode);
+    const avgPitch = Math.round(bracketNotes.reduce((s, n) => s + n.pitch, 0) / bracketNotes.length);
+    return { contextNotes, pcWeights, chord, nextChords, suggestions, avgPitch };
+  }, [composerNotes, composerBracket, keyRoot, mode, view]);
 
   const exportMidi = () => {
     if (notes.length === 0) { alert("Nothing to export yet — record something first!"); return; }
@@ -817,6 +935,250 @@ function MidiMuse() {
     }
   }, [view, now, activeNotes, context]);
 
+  useEffect(() => {
+    if (view !== "composer" || !composerCanvasRef.current) return;
+    const canvas = composerCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+    canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const rollTop = COMPOSER_BRACKET_H;
+    const rollH = cssH - rollTop;
+    const rollAreaX = PRODUCER_KEYBOARD_WIDTH;
+    const rollAreaW = cssW - rollAreaX;
+    const rowHeight = rollH / PITCH_RANGE;
+    const visStartBeat = composerScrollX / COMPOSER_PX_PER_BEAT;
+    const visEndBeat = (composerScrollX + rollAreaW) / COMPOSER_PX_PER_BEAT;
+    const beatToX = b => rollAreaX + (b - visStartBeat) * COMPOSER_PX_PER_BEAT;
+    const pitchToY = p => rollTop + rollH - (p - KEYBOARD_START + 1) * rowHeight;
+
+    // Backgrounds
+    ctx.fillStyle = "#0e0e10"; ctx.fillRect(0, rollTop, cssW, rollH);
+    ctx.fillStyle = "#0a0a0e"; ctx.fillRect(0, 0, cssW, COMPOSER_BRACKET_H);
+    ctx.fillStyle = "#12121a"; ctx.fillRect(rollAreaX, 0, rollAreaW, COMPOSER_BRACKET_H);
+
+    // Pitch row backgrounds
+    for (let p = KEYBOARD_START; p < KEYBOARD_END; p++) {
+      const y = pitchToY(p);
+      ctx.fillStyle = isBlackKey(p) ? "#151518" : "#1a1a1f"; ctx.fillRect(rollAreaX, y, rollAreaW, rowHeight);
+      if (p % 12 === 0) { ctx.fillStyle = "#2a2a35"; ctx.fillRect(rollAreaX, y, rollAreaW, 1); }
+    }
+
+    // Beat/bar grid + bar numbers in bracket lane
+    const startBar = Math.floor(visStartBeat / 4);
+    const endBar = Math.ceil(visEndBeat / 4);
+    for (let bar = startBar; bar <= endBar + 1; bar++) {
+      for (let beat = 0; beat < 4; beat++) {
+        const b = bar * 4 + beat;
+        const x = beatToX(b);
+        if (x < rollAreaX || x > cssW) continue;
+        ctx.strokeStyle = beat === 0 ? "rgba(180,180,210,0.22)" : "rgba(120,120,140,0.09)";
+        ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, rollTop); ctx.lineTo(x, cssH); ctx.stroke();
+        if (beat === 0 && x + 4 < cssW) {
+          ctx.fillStyle = "rgba(90,90,110,0.8)"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+          ctx.fillText(`${bar + 1}`, x, COMPOSER_BRACKET_H - 5); ctx.textAlign = "start";
+        }
+      }
+    }
+
+    // Context bracket
+    const bStartX = beatToX(composerBracket.startBeat);
+    const bEndX = beatToX(composerBracket.endBeat);
+    const clStart = Math.max(rollAreaX, bStartX), clEnd = Math.min(cssW, bEndX);
+    if (clEnd > clStart) {
+      ctx.fillStyle = "rgba(130,90,220,0.12)"; ctx.fillRect(clStart, 0, clEnd - clStart, COMPOSER_BRACKET_H);
+      // Also shade roll under bracket
+      ctx.fillStyle = "rgba(130,90,220,0.04)"; ctx.fillRect(clStart, rollTop, clEnd - clStart, rollH);
+    }
+    // bracket top bar
+    if (clEnd > clStart) {
+      ctx.strokeStyle = "rgba(155,115,245,0.75)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(clStart, 3); ctx.lineTo(clEnd, 3); ctx.stroke();
+    }
+    // left handle
+    if (bStartX >= rollAreaX && bStartX <= cssW) {
+      ctx.strokeStyle = "rgba(180,145,255,0.9)"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(bStartX, 2); ctx.lineTo(bStartX, COMPOSER_BRACKET_H - 2); ctx.stroke();
+    }
+    // right handle
+    if (bEndX >= rollAreaX && bEndX <= cssW) {
+      ctx.strokeStyle = "rgba(180,145,255,0.9)"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(bEndX, 2); ctx.lineTo(bEndX, COMPOSER_BRACKET_H - 2); ctx.stroke();
+    }
+    // label
+    if (clEnd > clStart) {
+      const midX = (clStart + clEnd) / 2;
+      ctx.fillStyle = "rgba(170,135,255,0.7)"; ctx.font = "8px monospace"; ctx.textAlign = "center";
+      ctx.fillText("CONTEXT", midX, COMPOSER_BRACKET_H - 5); ctx.textAlign = "start";
+    }
+
+    // Placed notes
+    for (const n of composerNotes) {
+      if (n.startBeat + n.durationBeats < visStartBeat || n.startBeat > visEndBeat) continue;
+      const x = beatToX(n.startBeat);
+      const w = Math.max(2, n.durationBeats * COMPOSER_PX_PER_BEAT - 2);
+      const y = pitchToY(n.pitch);
+      const inBracket = n.startBeat >= composerBracket.startBeat && n.startBeat < composerBracket.endBeat;
+      const sug = composerContext?.suggestions.get(pitchClass(n.pitch));
+      const color = sug ? ROLE_COLORS[sug.role] : ROLE_COLORS.scale;
+      ctx.fillStyle = color.light;
+      ctx.globalAlpha = inBracket ? 1 : 0.45;
+      const cl = Math.max(x, rollAreaX), cr = Math.min(x + w, cssW);
+      if (cr > cl) ctx.fillRect(cl, y + 1, cr - cl, rowHeight - 2);
+      ctx.globalAlpha = 1;
+    }
+
+    // Suggestion ghosts at cursor
+    const cursorX = beatToX(composerCursor);
+    if (composerContext?.nextChords.length > 0 && cursorX >= rollAreaX && cursorX < cssW) {
+      const avgP = composerContext.avgPitch || 60;
+      composerContext.nextChords.slice(0, 2).forEach((nc, i) => {
+        const voiced = voiceChordNear(nc.pcs, avgP);
+        const alpha = i === 0 ? 0.38 : 0.18;
+        const w = Math.max(2, composerDuration * COMPOSER_PX_PER_BEAT - 2);
+        for (const p of voiced) {
+          if (p < KEYBOARD_START || p >= KEYBOARD_END) continue;
+          const y = pitchToY(p);
+          ctx.fillStyle = ROLE_COLORS.leading.light; ctx.globalAlpha = alpha;
+          ctx.fillRect(cursorX, y + 1, Math.min(w, cssW - cursorX), rowHeight - 2);
+        }
+        if (i === 0 && cursorX + 4 < cssW) {
+          const label = `${NOTE_NAMES[nc.rootPc]}${QUALITY_NAMES[nc.quality] ?? nc.quality}`;
+          ctx.globalAlpha = 0.75; ctx.fillStyle = ROLE_COLORS.leading.glow;
+          ctx.font = "bold 10px monospace"; ctx.fillText(label, cursorX + 4, rollTop + 14);
+        }
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    // Cursor line (amber head)
+    if (cursorX >= rollAreaX && cursorX <= cssW) {
+      ctx.strokeStyle = "#e8a040"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cursorX, rollTop); ctx.lineTo(cursorX, cssH); ctx.stroke();
+      ctx.fillStyle = "#e8a040";
+      ctx.beginPath(); ctx.moveTo(cursorX - 5, rollTop); ctx.lineTo(cursorX + 5, rollTop); ctx.lineTo(cursorX, rollTop + 8); ctx.fill();
+    }
+    // Moving playhead during playback
+    if (isComposerPlaying && composerPlayStartRef.current) {
+      const elapsed = (performance.now() - composerPlayStartRef.current.wallTime) / 1000;
+      const playheadBeat = composerPlayStartRef.current.beat + elapsed * (bpm / 60);
+      const phX = beatToX(playheadBeat);
+      if (phX >= rollAreaX && phX <= cssW) {
+        ctx.strokeStyle = "#ff4d5e"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(phX, rollTop); ctx.lineTo(phX, cssH); ctx.stroke();
+        ctx.fillStyle = "#ff4d5e";
+        ctx.beginPath(); ctx.moveTo(phX - 4, rollTop); ctx.lineTo(phX + 4, rollTop); ctx.lineTo(phX, rollTop + 7); ctx.fill();
+      }
+    }
+
+    // Keyboard (same layout as producer)
+    for (let p = KEYBOARD_START; p < KEYBOARD_END; p++) {
+      const y = pitchToY(p);
+      const isActive = activeNotes.has(p);
+      const suggestion = composerContext?.suggestions.get(pitchClass(p));
+      const showSug = suggestion && suggestion.weight > 0.4 && suggestion.role !== "avoid";
+      const color = suggestion ? ROLE_COLORS[suggestion.role] : ROLE_COLORS.scale;
+      if (isBlackKey(p)) {
+        ctx.fillStyle = isActive ? color.light : "#0a0a0e"; ctx.fillRect(0, y, PRODUCER_KEYBOARD_WIDTH, rowHeight);
+        if (showSug && !isActive) { ctx.fillStyle = color.glow; ctx.globalAlpha = 0.3 + suggestion.weight * 0.5; ctx.fillRect(PRODUCER_KEYBOARD_WIDTH - 4, y + 1, 4, rowHeight - 2); ctx.globalAlpha = 1; }
+      } else {
+        ctx.fillStyle = isActive ? color.light : "#e8e8ea"; ctx.fillRect(0, y, PRODUCER_KEYBOARD_WIDTH, rowHeight);
+        ctx.fillStyle = "#c8c8cc"; ctx.fillRect(0, y, PRODUCER_KEYBOARD_WIDTH, 1);
+        if (showSug && !isActive) { ctx.fillStyle = color.glow; ctx.globalAlpha = 0.35 + suggestion.weight * 0.5; ctx.fillRect(PRODUCER_KEYBOARD_WIDTH - 4, y + 1, 4, rowHeight - 2); ctx.globalAlpha = 1; }
+        if (p % 12 === 0) { ctx.fillStyle = isActive ? "#000" : "#888"; ctx.font = "9px monospace"; ctx.fillText(`C${Math.floor(p / 12) - 1}`, 6, y + rowHeight - 3); }
+      }
+    }
+    ctx.fillStyle = "#2a2a35"; ctx.fillRect(PRODUCER_KEYBOARD_WIDTH, rollTop, 1, rollH);
+    ctx.fillStyle = "#1a1a25"; ctx.fillRect(PRODUCER_KEYBOARD_WIDTH, 0, 1, COMPOSER_BRACKET_H);
+  }, [view, composerNotes, composerBracket, composerCursor, composerScrollX, composerContext, composerDuration, activeNotes, isComposerPlaying, now, bpm]);
+
+  const onComposerMouseDown = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    // Bracket lane
+    if (y < COMPOSER_BRACKET_H && x >= PRODUCER_KEYBOARD_WIDTH) {
+      const bStartX = composerBracket.startBeat * COMPOSER_PX_PER_BEAT - composerScrollX + PRODUCER_KEYBOARD_WIDTH;
+      const bEndX = composerBracket.endBeat * COMPOSER_PX_PER_BEAT - composerScrollX + PRODUCER_KEYBOARD_WIDTH;
+      const handle = 10;
+      if (Math.abs(x - bStartX) < handle) setBracketDragState({ type: "resize-left", startX: x, origBracket: { ...composerBracket } });
+      else if (Math.abs(x - bEndX) < handle) setBracketDragState({ type: "resize-right", startX: x, origBracket: { ...composerBracket } });
+      else if (x > bStartX && x < bEndX) setBracketDragState({ type: "move", startX: x, origBracket: { ...composerBracket } });
+      return;
+    }
+    // Piano keyboard click
+    if (x < PRODUCER_KEYBOARD_WIDTH) {
+      const rollH = rect.height - COMPOSER_BRACKET_H;
+      const rowH = rollH / PITCH_RANGE;
+      const pitch = KEYBOARD_START + PITCH_RANGE - Math.floor((y - COMPOSER_BRACKET_H) / rowH) - 1;
+      if (pitch >= KEYBOARD_START && pitch < KEYBOARD_END) {
+        handleNoteOn(pitch, 90);
+        const up = () => { handleNoteOff(pitch); window.removeEventListener("mouseup", up); };
+        window.addEventListener("mouseup", up);
+      }
+      return;
+    }
+    // Click on suggestion ghost at cursor
+    if (composerContext?.nextChords.length > 0) {
+      const cursorX = composerCursor * COMPOSER_PX_PER_BEAT - composerScrollX + PRODUCER_KEYBOARD_WIDTH;
+      const w = composerDuration * COMPOSER_PX_PER_BEAT;
+      if (x >= cursorX && x <= cursorX + w) {
+        acceptSuggestion(composerContext.nextChords[0], composerContext.avgPitch || 60);
+        return;
+      }
+    }
+    // Click on roll → snap head to nearest beat
+    const clickBeat = (x - PRODUCER_KEYBOARD_WIDTH + composerScrollX) / COMPOSER_PX_PER_BEAT;
+    const snapped = Math.max(0, Math.round(clickBeat));
+    setComposerCursor(snapped);
+    composerCursorRef.current = snapped;
+  }, [composerBracket, composerScrollX, composerContext, composerCursor, composerDuration, handleNoteOn, handleNoteOff, acceptSuggestion]);
+
+  const onComposerMouseMove = useCallback((e) => {
+    if (!bracketDragState) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dx = (e.clientX - rect.left - bracketDragState.startX) / COMPOSER_PX_PER_BEAT;
+    const orig = bracketDragState.origBracket;
+    const minW = 0.25;
+    if (bracketDragState.type === "move") {
+      const w = orig.endBeat - orig.startBeat;
+      const ns = Math.max(0, orig.startBeat + dx);
+      setComposerBracket({ startBeat: ns, endBeat: ns + w });
+    } else if (bracketDragState.type === "resize-left") {
+      setComposerBracket({ startBeat: Math.max(0, Math.min(orig.endBeat - minW, orig.startBeat + dx)), endBeat: orig.endBeat });
+    } else if (bracketDragState.type === "resize-right") {
+      setComposerBracket({ startBeat: orig.startBeat, endBeat: Math.max(orig.startBeat + minW, orig.endBeat + dx) });
+    }
+  }, [bracketDragState]);
+
+  const onComposerMouseUp = useCallback(() => setBracketDragState(null), []);
+
+  const exportComposerMidi = useCallback(() => {
+    if (composerNotes.length === 0) { alert("Nothing to export!"); return; }
+    const tpq = 480;
+    const events = [];
+    for (const n of composerNotes) {
+      const st = Math.round(n.startBeat * tpq), et = Math.round((n.startBeat + n.durationBeats) * tpq);
+      events.push({ tick: st, type: "on", pitch: n.pitch, vel: n.velocity });
+      events.push({ tick: et, type: "off", pitch: n.pitch, vel: 0 });
+    }
+    events.sort((a, b) => a.tick - b.tick || (a.type === "off" ? -1 : 1));
+    const vlq = n => { const b = []; b.unshift(n & 0x7f); n >>= 7; while (n > 0) { b.unshift((n & 0x7f) | 0x80); n >>= 7; } return b; };
+    const tb = [];
+    const usp = Math.round(60000000 / bpm);
+    tb.push(0x00,0xff,0x51,0x03,(usp>>16)&0xff,(usp>>8)&0xff,usp&0xff);
+    let last = 0;
+    for (const ev of events) { const d = ev.tick - last; last = ev.tick; tb.push(...vlq(Math.max(0,d))); if (ev.type==="on") tb.push(0x90,ev.pitch,ev.vel); else tb.push(0x80,ev.pitch,0); }
+    tb.push(0x00,0xff,0x2f,0x00);
+    const hdr = [0x4d,0x54,0x68,0x64,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x01,(tpq>>8)&0xff,tpq&0xff];
+    const th = [0x4d,0x54,0x72,0x6b,(tb.length>>24)&0xff,(tb.length>>16)&0xff,(tb.length>>8)&0xff,tb.length&0xff];
+    const bytes = new Uint8Array([...hdr,...th,...tb]);
+    const url = URL.createObjectURL(new Blob([bytes],{type:"audio/midi"}));
+    const a = document.createElement("a"); a.href=url; a.download=`composer-${Date.now()}.mid`; a.click();
+    URL.revokeObjectURL(url);
+  }, [composerNotes, bpm]);
+
   const handleImprovKeyboardClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top, kbY = rect.height - 120;
@@ -839,7 +1201,7 @@ function MidiMuse() {
     const up = () => { handleNoteOff(pitch); window.removeEventListener("mouseup",up); }; window.addEventListener("mouseup",up);
   };
 
-  const producerStyle = view === "producer";
+  const producerStyle = view !== "improv";
   const activeFont = producerStyle ? PRODUCER_FONT : IMPROV_FONT;
 
   return (
@@ -850,6 +1212,7 @@ function MidiMuse() {
         </div>
         <div style={{ display:"flex", border:"1px solid #2a2a35", borderRadius:4 }}>
           <button onClick={() => setView("producer")} style={{ padding:"6px 14px", fontSize:12, background:view==="producer"?"#2a2a40":"transparent", color:view==="producer"?"#fff":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>PRODUCE</button>
+          <button onClick={() => setView("composer")} style={{ padding:"6px 14px", fontSize:12, background:view==="composer"?"#1a2a3a":"transparent", color:view==="composer"?"#e8a040":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>COMPOSE</button>
           <button onClick={() => setView("improv")} style={{ padding:"6px 14px", fontSize:12, background:view==="improv"?"#3a1a5a":"transparent", color:view==="improv"?"#fff":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>IMPROV</button>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontFamily:UI_FONT }}>
@@ -889,7 +1252,7 @@ function MidiMuse() {
         )}
       </div>
 
-      {producerStyle && (
+      {view === "producer" && (
         <div style={{ padding:"8px 16px", borderBottom:"1px solid #1a1a20", background:"#0b0b0e", display:"flex", gap:16, alignItems:"center", fontSize:12, flexWrap:"wrap", fontFamily:UI_FONT }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, flex:"1 1 320px", minWidth:0 }}>
             <span style={{ color:"#666", fontSize:11, whiteSpace:"nowrap" }}>CONTEXT</span>
@@ -918,7 +1281,7 @@ function MidiMuse() {
         </div>
       )}
 
-      {producerStyle ? (
+      {view === "producer" ? (
         <>
           <div style={{ flex:1, position:"relative", minHeight:400 }}>
             <canvas ref={canvasRef} onMouseDown={onRollMouseDown} onMouseMove={onRollMouseMove} onMouseUp={onRollMouseUp} onMouseLeave={onRollMouseUp}
@@ -932,6 +1295,61 @@ function MidiMuse() {
               {isRecording && !autoFollow && <button onClick={() => setAutoFollow(true)} style={{ ...ctrlStyle, fontSize:10, padding:"2px 6px", cursor:"pointer" }}>FOLLOW</button>}
             </div>
           )}
+        </>
+      ) : view === "composer" ? (
+        <>
+          <div style={{ flex:1, position:"relative", minHeight:400 }}>
+            <canvas ref={composerCanvasRef}
+              onMouseDown={onComposerMouseDown} onMouseMove={onComposerMouseMove}
+              onMouseUp={onComposerMouseUp} onMouseLeave={onComposerMouseUp}
+              style={{ width:"100%", height:"100%", display:"block", position:"absolute", inset:0,
+                cursor: bracketDragState ? (bracketDragState.type==="move" ? "grab" : "ew-resize") : "default" }} />
+          </div>
+          {composerNotes.length > 0 && (
+            <div style={{ height:24, background:"#0b0b0e", borderTop:"1px solid #1a1a20", padding:"0 10px", display:"flex", alignItems:"center", gap:8, fontSize:10, color:"#666", fontFamily:UI_FONT }}>
+              <input type="range" min={0} max={Math.max(1, composerCursor * COMPOSER_PX_PER_BEAT + 400)} value={composerScrollX} step={1}
+                onChange={e => setComposerScrollX(Number(e.target.value))} style={{ flex:1 }} />
+              <span>bar {Math.floor(composerScrollX / (COMPOSER_PX_PER_BEAT * 4)) + 1}</span>
+            </div>
+          )}
+          <div style={{ padding:"10px 16px", borderTop:"1px solid #1a1a20", background:"#0b0b0e", display:"flex", gap:12, alignItems:"center", flexWrap:"wrap", fontFamily:UI_FONT }}>
+            <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11 }}>
+              <span style={{ color:"#666", marginRight:2 }}>NOTE</span>
+              {COMPOSER_DURATIONS.map(d => (
+                <button key={d.beats} onClick={() => setComposerDuration(d.beats)}
+                  style={{ ...ctrlStyle, background:composerDuration===d.beats?"#2a3a50":"transparent", color:composerDuration===d.beats?"#8ce4ff":"#666", cursor:"pointer" }}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:11 }}>
+              <span style={{ color:"#666", marginRight:2 }}>REST +</span>
+              {COMPOSER_DURATIONS.map(d => (
+                <button key={d.beats} onClick={() => advanceCursor(d.beats)}
+                  style={{ ...ctrlStyle, color:"#a0a0b0", cursor:"pointer" }}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              {!isComposerPlaying
+                ? <button onClick={playComposerFromCursor} style={{ ...ctrlStyle, background:"#1a3a1a", color:"#6ee86e", cursor:"pointer" }}>▶ PLAY</button>
+                : <button onClick={stopComposerPlayback} style={{ ...ctrlStyle, background:"#3a1a1a", color:"#ff8a8a", cursor:"pointer" }}>■ STOP</button>}
+              <button onClick={() => { stopComposerPlayback(); setComposerNotes([]); setComposerCursor(0); composerCursorRef.current = 0; setComposerBracket({startBeat:0,endBeat:4}); setComposerScrollX(0); }} style={{ ...ctrlStyle, cursor:"pointer" }}>CLEAR</button>
+              <button onClick={exportComposerMidi} style={{ ...ctrlStyle, cursor:"pointer" }}>⬇ MIDI</button>
+            </div>
+            <div style={{ marginLeft:"auto", display:"flex", gap:16, alignItems:"center" }}>
+              {composerContext?.chord && (
+                <span style={{ fontSize:11 }}>
+                  <span style={{ color:"#666" }}>ctx: </span>
+                  <span style={{ color:"#8ce4ff" }}>{composerContext.chord.symbol}</span>
+                  {composerContext.chord.roman && <span style={{ color:"#c8a8ff", marginLeft:4 }}>({composerContext.chord.roman})</span>}
+                  {composerContext.nextChords?.length > 0 && <span style={{ color:"#a0f5c4", marginLeft:6 }}>→ {NOTE_NAMES[composerContext.nextChords[0].rootPc]}{QUALITY_NAMES[composerContext.nextChords[0].quality]??""}</span>}
+                </span>
+              )}
+              <span style={{ color:"#555", fontSize:11 }}>beat {composerCursor % 1 === 0 ? composerCursor : composerCursor.toFixed(2)} · {composerNotes.length} notes</span>
+            </div>
+          </div>
         </>
       ) : (
         <div style={{ flex:1, position:"relative", minHeight:500 }}>
