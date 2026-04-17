@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Visualizer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="phone-frame">
+  <canvas id="viz" width="630" height="1120"></canvas>
+  <div class="canvas-overlay">
+    <div class="mode-label" id="modeLabel">PARTICLES</div>
+    <div class="freq-bars" id="freqBar"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="controls-header">VISUALIZER</div>
+
+  <div class="section">
+    <div class="section-title">Mode</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" data-mode="particles">Particles</button>
+      <button class="mode-btn" data-mode="waveform">Waveform</button>
+      <button class="mode-btn" data-mode="geometry">Geometry</button>
+      <button class="mode-btn" data-mode="tunnel">Tunnel</button>
+      <button class="mode-btn" data-mode="lissajous">Lissajous</button>
+      <button class="mode-btn" data-mode="bars">Spectrum</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Parameters</div>
+    <div class="slider-row">
+      <span class="slider-label">Intensity</span>
+      <input type="range" id="intensity" min="1" max="100" value="50">
+      <span class="slider-val" id="intensityVal">50</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">Density</span>
+      <input type="range" id="density" min="1" max="100" value="40">
+      <span class="slider-val" id="densityVal">40</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">Speed</span>
+      <input type="range" id="speed" min="1" max="100" value="50">
+      <span class="slider-val" id="speedVal">50</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">Sensitivity</span>
+      <input type="range" id="sensitivity" min="1" max="100" value="60">
+      <span class="slider-val" id="sensitivityVal">60</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-label">Glow</span>
+      <input type="range" id="glow" min="0" max="100" value="60">
+      <span class="slider-val" id="glowVal">60</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Frequency Range</div>
+    <div class="dual-range-wrap">
+      <div class="dual-range-track">
+        <div class="dual-range-fill" id="freqRangeFill"></div>
+      </div>
+      <input type="range" id="freqLoSlider" min="0" max="127" value="0">
+      <input type="range" id="freqHiSlider" min="0" max="127" value="127">
+    </div>
+    <div class="dual-range-labels">
+      <span id="freqLoLabel">0 Hz</span>
+      <span id="freqHiLabel">22 kHz</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Color Palette</div>
+    <div class="color-grid">
+      <div class="color-swatch active" data-palette="cyber" style="background: linear-gradient(135deg,#00ffaa,#ff2d6e)"></div>
+      <div class="color-swatch" data-palette="fire" style="background: linear-gradient(135deg,#ff6b00,#ffdd00)"></div>
+      <div class="color-swatch" data-palette="ice" style="background: linear-gradient(135deg,#00c8ff,#a64dff)"></div>
+      <div class="color-swatch" data-palette="mono" style="background: linear-gradient(135deg,#ffffff,#555555)"></div>
+      <div class="color-swatch" data-palette="sunset" style="background: linear-gradient(135deg,#ff6ec7,#ffb347)"></div>
+      <div class="color-swatch" data-palette="matrix" style="background: linear-gradient(135deg,#00ff41,#003b00)"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Background</div>
+    <div class="bg-grid">
+      <button class="bg-btn active" data-bg="trail">Trail</button>
+      <button class="bg-btn" data-bg="black">Black</button>
+      <button class="bg-btn" data-bg="flash">Flash</button>
+      <button class="bg-btn" data-bg="color">Color</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">MP3 File</div>
+    <input type="file" id="mp3Input" accept="audio/*" style="display:none">
+    <button class="upload-btn" id="uploadBtn">⊕ Upload MP3</button>
+    <div class="track-name" id="trackName">no file loaded</div>
+    <div class="playback-row" id="playbackRow" style="display:none">
+      <button class="play-btn" id="playPauseBtn">▶ Play</button>
+      <button class="stop-btn" id="stopBtn">■ Stop</button>
+      <button class="download-btn" id="downloadBtn" style="display:none">⬇ Download Video</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Microphone</div>
+    <button class="mic-btn" id="micBtn">⬤ Enable Microphone</button>
+    <div class="mic-status" id="micStatus">no audio — click to connect</div>
+  </div>
+
+  <button class="fullscreen-btn" id="fullscreenBtn">⤢ Fullscreen Canvas</button>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/visualizers.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

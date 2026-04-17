@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PITCH HERO</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg: #05050f;
+  --hit-zone-x: 18%;
+  --neon-a: #00ffe5;
+  --neon-b: #ff3cac;
+  --neon-c: #ffee00;
+  --neon-d: #7b61ff;
+  --lane-h: 52px;
+  --highway-top: 140px;
+  --text: #e8e8ff;
+  --dim: #3a3a5a;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── Background canvas (trippy visuals) ── */
+#bgCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.55;
+}
+
+/* ── Game canvas (highway) ── */
+#gameCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── HUD overlays ── */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Score block */
+#scoreBlock {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  text-align: right;
+}
+#scoreVal {
+  font-family: 'Orbitron', monospace;
+  font-size: 42px;
+  font-weight: 900;
+  color: var(--neon-a);
+  text-shadow: 0 0 20px var(--neon-a), 0 0 40px var(--neon-a);
+  line-height: 1;
+}
+#scoreLabel { font-size: 10px; letter-spacing: 4px; color: var(--dim); margin-top: 2px; }
+
+/* Streak */
+#streakBlock {
+  position: absolute;
+  top: 18px;
+  left: 28px;
+}
+#streakVal {
+  font-family: 'Orbitron', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--neon-b);
+  text-shadow: 0 0 16px var(--neon-b);
+}
+#streakLabel { font-size: 9px; letter-spacing: 3px; color: var(--dim); }
+#accuracyVal {
+  font-size: 13px;
+  color: var(--neon-c);
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+
+/* Pitch display */
+#pitchBlock {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  min-width: 260px;
+}
+#detectedNote {
+  font-family: 'Orbitron', monospace;
+  font-size: 56px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 30px var(--neon-a);
+  line-height: 1;
+  transition: color 0.08s;
+}
+#detectedHz {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  margin-top: 4px;
+}
+#centMeter {
+  margin: 10px auto 0;
+  width: 220px;
+  height: 6px;
+  background: #111130;
+  border-radius: 3px;
+  position: relative;
+  border: 1px solid #222244;
+}
+#centNeedle {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 3px;
+  height: 12px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: left 0.05s, background 0.1s;
+  box-shadow: 0 0 8px #fff;
+}
+#centLabel { font-size: 9px; letter-spacing: 2px; color: var(--dim); margin-top: 5px; }
+
+/* Input mode toggle */
+#inputToggle {
+  position: absolute;
+  bottom: 32px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: all;
+}
+.inp-btn {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+.inp-btn:hover { border-color: var(--neon-a); color: var(--neon-a); }
+.inp-btn.active { border-color: var(--neon-a); color: var(--neon-a); background: rgba(0,255,229,0.07); box-shadow: 0 0 12px rgba(0,255,229,0.15); }
+
+/* Song select */
+#songPanel {
+  position: absolute;
+  bottom: 32px;
+  left: 28px;
+  pointer-events: all;
+}
+#songLabel { font-size: 9px; letter-spacing: 3px; color: var(--dim); margin-bottom: 6px; }
+#songSelect {
+  background: #0a0a1a;
+  border: 1px solid var(--dim);
+  color: var(--neon-c);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 7px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+#songSelect:focus { outline: none; border-color: var(--neon-c); }
+
+/* Combo burst */
+#comboBurst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Orbitron', monospace;
+  font-size: 72px;
+  font-weight: 900;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  text-shadow: 0 0 40px currentColor;
+}
+
+/* Start screen */
+#startScreen {
+  position: fixed;
+  inset: 0;
+  background: rgba(5,5,15,0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  gap: 24px;
+}
+#startScreen h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: 72px;
+  font-weight: 900;
+  background: linear-gradient(90deg, var(--neon-a), var(--neon-b), var(--neon-c));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  letter-spacing: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.4)} }
+
+#startScreen p {
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--dim);
+  text-align: center;
+  line-height: 2;
+}
+#startBtn {
+  padding: 16px 48px;
+  background: transparent;
+  border: 2px solid var(--neon-a);
+  color: var(--neon-a);
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  letter-spacing: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  box-shadow: 0 0 24px rgba(0,255,229,0.2);
+}
+#startBtn:hover {
+  background: rgba(0,255,229,0.1);
+  box-shadow: 0 0 40px rgba(0,255,229,0.4);
+  transform: scale(1.03);
+}
+.midi-note { color: var(--neon-b); }
+.mic-note  { color: var(--neon-a); }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<canvas id="gameCanvas"></canvas>
+
+<div id="hud">
+  <div id="scoreBlock">
+    <div id="scoreVal">0</div>
+    <div id="scoreLabel">SCORE</div>
+  </div>
+
+  <div id="streakBlock">
+    <div id="streakVal">×0</div>
+    <div id="streakLabel">STREAK</div>
+    <div id="accuracyVal">--.--%</div>
+  </div>
+
+  <div id="pitchBlock">
+    <div id="detectedNote">--</div>
+    <div id="detectedHz">0.0 Hz</div>
+    <div id="centMeter"><div id="centNeedle"></div></div>
+    <div id="centLabel">CENTS ◀ FLAT · SHARP ▶</div>
+  </div>
+
+  <div id="inputToggle">
+    <button class="inp-btn active" id="micBtn" onclick="setInput('mic')">🎤 MIC</button>
+    <button class="inp-btn" id="midiBtn" onclick="setInput('midi')">🎹 MIDI</button>
+  </div>
+
+  <div id="songPanel" style="display:none;"></div>
+
+  <div id="comboBurst"></div>
+
+  <div id="micStatus" style="position:absolute;top:18px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:3px;color:#3a3a5a;display:none;">
+    ● MIC ACTIVE
+  </div>
+</div>
+
+<div id="startScreen">
+  <h1>PITCH HERO</h1>
+  <p>
+    SING OR PLAY ALONG WITH THE SCROLLING NOTES<br>
+    <span class="mic-note">● MIC</span> — YIN PITCH DETECTION &nbsp;|&nbsp; <span class="midi-note">● MIDI</span> — KEYBOARD INPUT<br>
+    HIT THE NOTE AS IT CROSSES THE GLOWING LINE
+  </p>
+  <select id="songSelectStart" onchange="loadSong(this.value)" style="background:#0a0a1a;border:1px solid #3a3a5a;color:#ffee00;font-family:'Share Tech Mono',monospace;font-size:13px;padding:10px 16px;border-radius:4px;cursor:pointer;letter-spacing:1px;margin-bottom:4px;">
+    <option value="twinkle">Twinkle Twinkle</option>
+    <option value="blues">Blues Scale Run</option>
+    <option value="chromatic">Chromatic Climb</option>
+    <option value="pentatonic">Pentatonic Groove</option>
+    <option value="ode">Ode to Joy</option>
+  </select>
+  <button id="startBtn" onclick="startGame()">START</button>
+</div>
+
+<div id="endScreen" style="display:none;position:fixed;inset:0;background:rgba(5,5,15,0.93);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:18px;">
+  <div id="endRating" style="font-family:'Orbitron',monospace;font-size:64px;font-weight:900;letter-spacing:4px;text-shadow:0 0 40px currentColor;"></div>
+  <div id="endScore" style="font-family:'Orbitron',monospace;font-size:36px;font-weight:700;color:#00ffe5;text-shadow:0 0 20px #00ffe5;"></div>
+  <div id="endStats" style="font-size:12px;letter-spacing:3px;color:#3a3a5a;text-align:center;line-height:2.2;"></div>
+  <button onclick="playAgain()" style="margin-top:10px;padding:14px 44px;background:transparent;border:2px solid #00ffe5;color:#00ffe5;font-family:'Orbitron',monospace;font-size:14px;letter-spacing:4px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;">PLAY AGAIN</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  NOTES & MUSIC
+// ═══════════════════════════════════════════
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function freqToMidi(freq) {
+  if (freq <= 0) return null;
+  return 69 + 12 * Math.log2(freq / 440);
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function midiToName(midi) {
+  const m = Math.round(midi);
+  const note = NOTE_NAMES[m % 12];
+  const oct  = Math.floor(m / 12) - 1;
+  return note + oct;
+}
+
+function centsOff(detectedFreq, targetMidi) {
+  if (!detectedFreq || !targetMidi) return 0;
+  const detectedMidi = freqToMidi(detectedFreq);
+  return (detectedMidi - targetMidi) * 100;
+}
+
+// Songs: array of {midi, dur(ms), label}
+const SONGS = {
+  twinkle: {
+    name: "Twinkle Twinkle",
+    bpm: 100,
+    notes: [60,60,67,67,69,69,67,65,65,64,64,62,62,60,
+            67,67,65,65,64,64,62,67,67,65,65,64,64,62,
+            60,60,67,67,69,69,67,65,65,64,64,62,62,60].map((m,i)=>({midi:m,dur:600,beat:i}))
+  },
+  blues: {
+    name: "Blues Scale Run",
+    bpm: 120,
+    notes: [
+      {midi:60,dur:300},{midi:63,dur:300},{midi:65,dur:300},{midi:66,dur:300},
+      {midi:67,dur:300},{midi:70,dur:300},{midi:72,dur:500},
+      {midi:72,dur:300},{midi:70,dur:300},{midi:67,dur:300},{midi:66,dur:300},
+      {midi:65,dur:300},{midi:63,dur:300},{midi:60,dur:600},
+    ]
+  },
+  chromatic: {
+    name: "Chromatic Climb",
+    bpm: 110,
+    notes: Array.from({length:25},(_, i)=>({midi:60+i, dur:350}))
+  },
+  pentatonic: {
+    name: "Pentatonic Groove",
+    bpm: 130,
+    notes: [60,62,64,67,69,72,69,67,64,62,60,
+            64,67,69,67,64,62,60,67,64,62,60].map(m=>({midi:m,dur:380}))
+  },
+  ode: {
+    name: "Ode to Joy",
+    bpm: 108,
+    notes: [64,64,65,67,67,65,64,62,60,60,62,64,64,62,62,
+            64,64,65,67,67,65,64,62,60,60,62,64,62,60,60].map(m=>({midi:m,dur:500}))
+  }
+};
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let currentSong   = SONGS.twinkle;
+let inputMode     = 'mic'; // 'mic' | 'midi'
+let gameRunning   = false;
+
+let detectedFreq  = 0;
+let detectedMidi  = null;
+let midiNoteOn    = null; // currently held MIDI note
+
+let score         = 0;
+let streak        = 0;
+let totalHits     = 0;
+let totalAttempts = 0;
+
+// Highway notes
+let highwayNotes  = []; // {midi, x, width, lane, color, hit, missed, label}
+let songTime      = 0;  // ms elapsed
+let noteQueue     = []; // upcoming note events {time, midi}
+let lastTimestamp = null;
+let loopActive    = false;
+
+// YIN
+let audioCtx, analyser, micBuffer, scriptProcessor;
+const YIN_THRESHOLD = 0.12;
+const SAMPLE_RATE = 44100;
+const BUFFER_SIZE = 2048;
+
+// Canvases
+const bgCanvas   = document.getElementById('bgCanvas');
+const gameCanvas = document.getElementById('gameCanvas');
+const bgCtx      = bgCanvas.getContext('2d');
+const gCtx       = gameCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = bgCanvas.width  = gameCanvas.width  = window.innerWidth;
+  H = bgCanvas.height = gameCanvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════
+//  LANE LAYOUT
+// ═══════════════════════════════════════════
+// We'll show 2 octaves (24 semitones) mapped to vertical lanes
+// Middle = C4 (midi 60). Range: midi 48–84
+const MIDI_MIN = 48;
+const MIDI_MAX = 84;
+const TOTAL_SEMITONES = MIDI_MAX - MIDI_MIN;
+
+function midiToLaneY(midi) {
+  // Higher pitch = higher on screen
+  const norm = 1 - (midi - MIDI_MIN) / TOTAL_SEMITONES;
+  const highwayTop = H * 0.12;
+  const highwayBot = H * 0.78;
+  return highwayTop + norm * (highwayBot - highwayTop);
+}
+
+const HIT_X_NORM = 0.18; // normalized hit zone x
+
+// ═══════════════════════════════════════════
+//  NOTE COLORS by pitch class
+// ═══════════════════════════════════════════
+const PITCH_COLORS = [
+  '#ff3cac','#ff6b3c','#ffee00','#aaff00','#00ffb8',
+  '#00e5ff','#4d8fff','#7b61ff','#cc44ff','#ff44cc',
+  '#ff7700','#44ddff'
+];
+function noteColor(midi) { return PITCH_COLORS[midi % 12]; }
+
+// ═══════════════════════════════════════════
+//  SONG LOADING
+// ═══════════════════════════════════════════
+function loadSong(key) {
+  currentSong = SONGS[key] || SONGS.twinkle;
+}
+
+function buildNoteQueue() {
+  noteQueue = [];
+  let t = 1500; // 1.5s lead-in
+  for (const n of currentSong.notes) {
+    noteQueue.push({ startTime: t, endTime: t + n.dur, midi: n.midi });
+    t += n.dur + 80;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  HIGHWAY NOTE SPAWNING
+// ═══════════════════════════════════════════
+const SCROLL_SPEED = 280; // px/sec
+const NOTE_HEIGHT  = 28;
+
+function spawnNote(ev) {
+  const travelTime = (W * (1 - HIT_X_NORM)) / SCROLL_SPEED * 1000; // ms to travel from right edge to hit zone
+  const dur = ev.endTime - ev.startTime;
+  const noteWidth = Math.max(40, (dur / 1000) * SCROLL_SPEED);
+  const color = noteColor(ev.midi);
+  highwayNotes.push({
+    midi:    ev.midi,
+    label:   midiToName(ev.midi),
+    startTime: ev.startTime,
+    endTime:   ev.endTime,
+    x:       W + noteWidth,   // starts off-screen right
+    y:       midiToLaneY(ev.midi),
+    width:   noteWidth,
+    color,
+    hit:     false,
+    missed:  false,
+    glow:    0,
+    spawnedAt: songTime,
+  });
+}
+
+// ═══════════════════════════════════════════
+//  YIN PITCH DETECTION
+// ═══════════════════════════════════════════
+function yinDetect(buf) {
+  const N = buf.length;
+  const half = Math.floor(N / 2);
+  const d = new Float32Array(half);
+
+  // Difference function
+  for (let tau = 1; tau < half; tau++) {
+    let s = 0;
+    for (let j = 0; j < half; j++) {
+      const diff = buf[j] - buf[j + tau];
+      s += diff * diff;
+    }
+    d[tau] = s;
+  }
+
+  // Cumulative mean normalized
+  const cmnd = new Float32Array(half);
+  cmnd[0] = 1;
+  let running = 0;
+  for (let tau = 1; tau < half; tau++) {
+    running += d[tau];
+    cmnd[tau] = d[tau] * tau / running;
+  }
+
+  // Find first dip below threshold
+  let tau = -1;
+  for (let i = 2; i < half; i++) {
+    if (cmnd[i] < YIN_THRESHOLD) {
+      while (i + 1 < half && cmnd[i + 1] < cmnd[i]) i++;
+      tau = i;
+      break;
+    }
+  }
+
+  if (tau < 2) return 0;
+
+  // Parabolic interpolation
+  const x0 = tau > 0 ? tau - 1 : tau;
+  const x2 = tau < half - 1 ? tau + 1 : tau;
+  if (x0 === tau) return SAMPLE_RATE / (cmnd[tau] <= cmnd[x2] ? tau : x2);
+  if (x2 === tau) return SAMPLE_RATE / (cmnd[tau] <= cmnd[x0] ? tau : x0);
+  const s0 = cmnd[x0], s1 = cmnd[tau], s2 = cmnd[x2];
+  const betterTau = tau + (s2 - s0) / (2 * (2 * s1 - s2 - s0));
+  return SAMPLE_RATE / betterTau;
+}
+
+async function startMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
+    audioCtx     = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    const src    = audioCtx.createMediaStreamSource(stream);
+    scriptProcessor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
+    const floatBuf = new Float32Array(BUFFER_SIZE);
+    scriptProcessor.onaudioprocess = (e) => {
+      e.inputBuffer.copyFromChannel(floatBuf, 0);
+      const freq = yinDetect(floatBuf);
+      detectedFreq = (freq > 60 && freq < 1500) ? freq : 0;
+      if (detectedFreq > 0) {
+        detectedMidi = freqToMidi(detectedFreq);
+      } else {
+        detectedMidi = null;
+      }
+    };
+    src.connect(scriptProcessor);
+    scriptProcessor.connect(audioCtx.destination);
+    const el = document.getElementById('micStatus');
+    el.style.display = 'block';
+    el.style.color = '#00ffe5';
+  } catch(e) {
+    console.warn('Mic error:', e);
+    const el = document.getElementById('micStatus');
+    el.style.display = 'block';
+    el.textContent = '✗ MIC DENIED';
+    el.style.color = '#ff3cac';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  MIDI
+// ═══════════════════════════════════════════
+async function startMidi() {
+  if (!navigator.requestMIDIAccess) return;
+  try {
+    const access = await navigator.requestMIDIAccess();
+    access.inputs.forEach(input => {
+      input.onmidimessage = (msg) => {
+        const [status, note, velocity] = msg.data;
+        if ((status & 0xf0) === 0x90 && velocity > 0) {
+          midiNoteOn  = note;
+          detectedMidi = note;
+          detectedFreq = midiToFreq(note);
+        } else if ((status & 0xf0) === 0x80 || ((status & 0xf0) === 0x90 && velocity === 0)) {
+          if (midiNoteOn === note) {
+            midiNoteOn   = null;
+            detectedMidi = null;
+            detectedFreq = 0;
+          }
+        }
+      };
+    });
+  } catch(e) {
+    console.warn('MIDI error:', e);
+  }
+}
+
+function setInput(mode) {
+  inputMode = mode;
+  document.getElementById('micBtn').classList.toggle('active', mode === 'mic');
+  document.getElementById('midiBtn').classList.toggle('active', mode === 'midi');
+  if (mode === 'mic' && !audioCtx) startMic();
+  if (mode === 'midi') startMidi();
+}
+
+// ═══════════════════════════════════════════
+//  SCORING
+// ═══════════════════════════════════════════
+const CENTS_PERFECT = 25;
+const CENTS_GOOD    = 50;
+
+function checkHits(dt) {
+  const hitX = W * HIT_X_NORM;
+  for (const n of highwayNotes) {
+    if (n.hit || n.missed) continue;
+    const noteLeft  = n.x - n.width;
+    const noteRight = n.x;
+    const inWindow  = noteLeft <= hitX && hitX <= noteRight + 20;
+    if (!inWindow) continue;
+
+    // Has player made sound near this note?
+    if (detectedMidi === null) continue;
+    const centsErr = Math.abs(centsOff(detectedFreq, n.midi));
+
+    if (centsErr < CENTS_PERFECT) {
+      registerHit(n, 'PERFECT', '#00ffe5');
+    } else if (centsErr < CENTS_GOOD) {
+      registerHit(n, 'GOOD', '#ffee00');
+    }
+    // else: too far off — wait for better pitch
+  }
+
+  // Mark notes past hit zone as missed
+  for (const n of highwayNotes) {
+    if (!n.hit && !n.missed && n.x < hitX - 30) {
+      n.missed = true;
+      streak = 0;
+      totalAttempts++;
+    }
+  }
+}
+
+function registerHit(note, quality, color) {
+  note.hit  = true;
+  note.glow = 1;
+  streak++;
+  score += quality === 'PERFECT' ? 100 * Math.max(1, streak) : 50 * Math.max(1, streak);
+  totalHits++;
+  totalAttempts++;
+
+  if (streak === 10 || streak === 25 || streak % 50 === 0) showBurst(`${streak}× STREAK!`, color);
+  if (quality === 'PERFECT' && streak > 0 && streak % 5 === 0) showBurst('PERFECT!', '#00ffe5');
+}
+
+function showBurst(text, color) {
+  const el = document.getElementById('comboBurst');
+  el.textContent = text;
+  el.style.color  = color;
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 600);
+}
+
+// ═══════════════════════════════════════════
+//  BACKGROUND VISUALIZER
+// ═══════════════════════════════════════════
+let bgT = 0;
+function drawBackground() {
+  bgCtx.fillStyle = 'rgba(5,5,15,0.18)';
+  bgCtx.fillRect(0, 0, W, H);
+
+  const energy = detectedFreq > 0 ? 0.6 : 0.15;
+  const cx = W / 2, cy = H / 2;
+
+  // Rotating lissajous
+  bgCtx.save();
+  bgCtx.strokeStyle = detectedFreq > 0 ? '#00ffe530' : '#7b61ff18';
+  bgCtx.lineWidth   = 1.5;
+  bgCtx.shadowBlur  = 18;
+  bgCtx.shadowColor = '#00ffe5';
+  bgCtx.beginPath();
+  const AX = W * 0.38, AY = H * 0.33;
+  for (let i = 0; i <= 800; i++) {
+    const th = (i / 800) * Math.PI * 2;
+    const x  = cx + AX * Math.sin(3 * th + bgT * 0.004);
+    const y  = cy + AY * Math.sin(2 * th + bgT * 0.003 + 0.5);
+    i === 0 ? bgCtx.moveTo(x, y) : bgCtx.lineTo(x, y);
+  }
+  bgCtx.stroke();
+  bgCtx.restore();
+
+  // Radial rings on pitch
+  if (detectedFreq > 0) {
+    const midi  = Math.round(freqToMidi(detectedFreq));
+    const color = noteColor(midi);
+    for (let r = 0; r < 4; r++) {
+      const radius = 80 + r * 80 + (bgT % 80);
+      bgCtx.save();
+      bgCtx.strokeStyle = color + '22';
+      bgCtx.lineWidth   = 2 - r * 0.4;
+      bgCtx.shadowBlur  = 20;
+      bgCtx.shadowColor = color;
+      bgCtx.beginPath();
+      bgCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+      bgCtx.stroke();
+      bgCtx.restore();
+    }
+  }
+
+  // Floating particles
+  bgCtx.save();
+  for (let i = 0; i < 40; i++) {
+    const seed  = i * 137.5;
+    const px    = (Math.sin(seed + bgT * 0.0007) * 0.5 + 0.5) * W;
+    const py    = (Math.cos(seed * 1.3 + bgT * 0.0005) * 0.5 + 0.5) * H;
+    const size  = Math.max(0.1, 1 + Math.sin(seed + bgT * 0.002) * 1.5);
+    const alpha = 0.08 + energy * 0.3;
+    bgCtx.fillStyle = `rgba(123,97,255,${alpha})`;
+    bgCtx.beginPath();
+    bgCtx.arc(px, py, size, 0, Math.PI * 2);
+    bgCtx.fill();
+  }
+  bgCtx.restore();
+
+  bgT++;
+}
+
+// ═══════════════════════════════════════════
+//  GAME CANVAS DRAWING
+// ═══════════════════════════════════════════
+function drawHighway() {
+  gCtx.clearRect(0, 0, W, H);
+
+  const hitX      = W * HIT_X_NORM;
+  const highTop   = H * 0.11;
+  const highBot   = H * 0.79;
+
+  // ── Piano roll lane grid ──
+  for (let midi = MIDI_MIN; midi <= MIDI_MAX; midi++) {
+    const y    = midiToLaneY(midi);
+    const name = NOTE_NAMES[midi % 12];
+    const isC  = name === 'C';
+    const isSharp = name.includes('#');
+
+    gCtx.strokeStyle = isC ? '#ffffff18' : (isSharp ? '#ffffff06' : '#ffffff0a');
+    gCtx.lineWidth   = isC ? 1.5 : 0.5;
+    gCtx.beginPath();
+    gCtx.moveTo(hitX, y);
+    gCtx.lineTo(W, y);
+    gCtx.stroke();
+
+    if (isC || name === 'A' || name === 'E') {
+      gCtx.fillStyle = '#ffffff25';
+      gCtx.font = '9px Share Tech Mono';
+      gCtx.fillText(name + Math.floor(midi/12)-1, hitX - 28, y + 4);
+    }
+  }
+
+  // ── Hit zone vertical line ──
+  const hitGlow = (detectedFreq > 0) ? 1 : 0.3;
+  gCtx.save();
+  gCtx.shadowBlur  = 24 * hitGlow;
+  gCtx.shadowColor = '#00ffe5';
+  gCtx.strokeStyle = `rgba(0,255,229,${0.4 * hitGlow + 0.2})`;
+  gCtx.lineWidth   = 3;
+  gCtx.setLineDash([6, 4]);
+  gCtx.beginPath();
+  gCtx.moveTo(hitX, highTop);
+  gCtx.lineTo(hitX, highBot);
+  gCtx.stroke();
+  gCtx.setLineDash([]);
+  gCtx.restore();
+
+  // ── Draw notes ──
+  for (const n of highwayNotes) {
+    if (n.x < -n.width - 10) continue;
+
+    const x    = n.x - n.width;
+    const y    = n.y - NOTE_HEIGHT / 2;
+    const w    = n.width;
+    const h    = NOTE_HEIGHT;
+    const col  = n.color;
+    const alpha = n.missed ? 0.25 : 1;
+
+    gCtx.save();
+    gCtx.globalAlpha = alpha;
+
+    if (!n.missed) {
+      gCtx.shadowBlur  = n.hit ? 28 + n.glow * 20 : 12;
+      gCtx.shadowColor = col;
+    }
+
+    // Note body
+    const grad = gCtx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, col + 'ff');
+    grad.addColorStop(1, col + '88');
+    gCtx.fillStyle = grad;
+    roundRect(gCtx, x, y, w, h, 6);
+    gCtx.fill();
+
+    // Note label
+    if (w > 30) {
+      gCtx.fillStyle  = '#000000cc';
+      gCtx.font       = 'bold 11px Share Tech Mono';
+      gCtx.textAlign  = 'center';
+      gCtx.textBaseline = 'middle';
+      gCtx.fillText(n.label, x + w / 2, n.y);
+    }
+
+    // Hit flash
+    if (n.hit && n.glow > 0) {
+      gCtx.fillStyle = `rgba(255,255,255,${n.glow * 0.4})`;
+      roundRect(gCtx, x, y, w, h, 6);
+      gCtx.fill();
+      n.glow = Math.max(0, n.glow - 0.06);
+    }
+
+    gCtx.restore();
+  }
+
+  // ── Player pitch indicator ──
+  if (detectedFreq > 0 && detectedMidi !== null) {
+    const py   = midiToLaneY(detectedMidi);
+    const col  = noteColor(Math.round(detectedMidi));
+
+    gCtx.save();
+    gCtx.shadowBlur  = 30;
+    gCtx.shadowColor = col;
+    gCtx.fillStyle   = col;
+    gCtx.beginPath();
+    gCtx.arc(hitX, py, 10, 0, Math.PI * 2);
+    gCtx.fill();
+
+    // Trailing line
+    gCtx.strokeStyle = col + '66';
+    gCtx.lineWidth   = 3;
+    gCtx.shadowBlur  = 10;
+    gCtx.beginPath();
+    gCtx.moveTo(hitX - 60, py);
+    gCtx.lineTo(hitX, py);
+    gCtx.stroke();
+    gCtx.restore();
+  }
+
+  // ── Left panel bg ──
+  gCtx.fillStyle = 'rgba(5,5,15,0.7)';
+  gCtx.fillRect(0, 0, hitX - 2, H);
+
+  // ── Song name ──
+  gCtx.fillStyle = 'rgba(255,255,255,0.08)';
+  gCtx.font = '11px Share Tech Mono';
+  gCtx.textAlign = 'center';
+  gCtx.fillText(currentSong.name?.toUpperCase() || '', W / 2, highBot + 22);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ═══════════════════════════════════════════
+//  HUD UPDATE
+// ═══════════════════════════════════════════
+function updateHUD() {
+  document.getElementById('scoreVal').textContent = score.toLocaleString();
+  document.getElementById('streakVal').textContent = `×${streak}`;
+
+  const acc = totalAttempts > 0 ? (totalHits / totalAttempts * 100).toFixed(1) : '--';
+  document.getElementById('accuracyVal').textContent = acc + '%';
+
+  if (detectedFreq > 0) {
+    const midi  = Math.round(freqToMidi(detectedFreq));
+    document.getElementById('detectedNote').textContent = midiToName(midi);
+    document.getElementById('detectedNote').style.color = noteColor(midi);
+    document.getElementById('detectedHz').textContent   = detectedFreq.toFixed(1) + ' Hz';
+
+    // Cent meter — find nearest active note
+    let nearestNote = null;
+    let nearestDist = Infinity;
+    const hitX = W * HIT_X_NORM;
+    for (const n of highwayNotes) {
+      if (n.hit || n.missed) continue;
+      const dist = Math.abs(n.x - hitX);
+      if (dist < nearestDist) { nearestDist = dist; nearestNote = n; }
+    }
+
+    let centErr = 0;
+    if (nearestNote && nearestDist < 150) {
+      centErr = centsOff(detectedFreq, nearestNote.midi);
+    }
+    const needlePos = 50 + Math.max(-50, Math.min(50, centErr)) / 100 * 100;
+    const needle    = document.getElementById('centNeedle');
+    needle.style.left       = needlePos + '%';
+    needle.style.background = Math.abs(centErr) < 25 ? '#00ffe5' : Math.abs(centErr) < 50 ? '#ffee00' : '#ff3cac';
+    needle.style.boxShadow  = `0 0 8px ${needle.style.background}`;
+  } else {
+    document.getElementById('detectedNote').textContent = '--';
+    document.getElementById('detectedNote').style.color = '#fff';
+    document.getElementById('detectedHz').textContent   = '-- Hz';
+    document.getElementById('centNeedle').style.left    = '50%';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════
+function gameLoop(timestamp) {
+  if (!gameRunning) return;
+
+  const dt    = lastTimestamp ? Math.min(timestamp - lastTimestamp, 50) : 16;
+  lastTimestamp = timestamp;
+  songTime     += dt;
+
+  // Spawn notes from queue
+  for (let i = noteQueue.length - 1; i >= 0; i--) {
+    const ev = noteQueue[i];
+    // Spawn note early enough so it arrives at hit zone on time
+    const travelMs = (W * (1 - HIT_X_NORM)) / SCROLL_SPEED * 1000;
+    if (songTime >= ev.startTime - travelMs) {
+      spawnNote(ev);
+      noteQueue.splice(i, 1);
+    }
+  }
+
+  // Scroll notes
+  const pxPerMs = SCROLL_SPEED / 1000;
+  for (const n of highwayNotes) {
+    n.x -= pxPerMs * dt;
+  }
+
+  // Clean off-screen notes
+  highwayNotes = highwayNotes.filter(n => n.x > -n.width - 20);
+
+  // Check hits
+  checkHits(dt);
+
+  // Song finished
+  if (noteQueue.length === 0 && highwayNotes.length === 0) {
+    gameRunning = false;
+    setTimeout(endGame, 800);
+    return;
+  }
+
+  drawBackground();
+  drawHighway();
+  updateHUD();
+
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  const acc = totalAttempts > 0 ? totalHits / totalAttempts : 0;
+  const accPct = Math.round(acc * 100);
+
+  let rating, color;
+  switch (true) {
+    case accPct === 100:
+      rating = 'FLAWLESS'; color = '#00ffe5'; break;
+    case accPct >= 90:
+      rating = 'EXCELLENT'; color = '#aaff00'; break;
+    case accPct >= 75:
+      rating = 'GREAT!'; color = '#ffee00'; break;
+    case accPct >= 55:
+      rating = 'NICE!'; color = '#ff9900'; break;
+    case accPct >= 35:
+      rating = 'KEEP GOING'; color = '#ff6b3c'; break;
+    default:
+      rating = 'PRACTICE!'; color = '#ff3cac';
+  }
+
+  document.getElementById('endRating').textContent = rating;
+  document.getElementById('endRating').style.color = color;
+  document.getElementById('endScore').textContent = score.toLocaleString() + ' PTS';
+  document.getElementById('endStats').innerHTML =
+    `ACCURACY &nbsp; ${accPct}%<br>HITS &nbsp; ${totalHits} / ${totalAttempts}<br>BEST STREAK &nbsp; ×${streak}`;
+
+  const el = document.getElementById('endScreen');
+  el.style.display = 'flex';
+}
+
+function playAgain() {
+  score = 0; streak = 0; totalHits = 0; totalAttempts = 0;
+  highwayNotes = []; songTime = 0; lastTimestamp = null;
+  document.getElementById('endScreen').style.display = 'none';
+  gameRunning = true;
+  buildNoteQueue();
+  requestAnimationFrame(gameLoop);
+}
+
+// ═══════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════
+async function startGame() {
+  loadSong(document.getElementById('songSelectStart').value);
+  document.getElementById('startScreen').style.display = 'none';
+  score = 0; streak = 0; totalHits = 0; totalAttempts = 0;
+  gameRunning = true;
+
+  await startMic();
+  await startMidi();
+
+  buildNoteQueue();
+  requestAnimationFrame(gameLoop);
+}
+
+// Ambient bg before game start
+(function ambientLoop() {
+  drawBackground();
+  requestAnimationFrame(ambientLoop);
+})();
+</script>
+</body>
+</html>

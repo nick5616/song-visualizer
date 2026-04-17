@@ -26,10 +26,11 @@ function simulateAudio() {
 
 function processAudio() {
   const sens = params.sensitivity / 60;
+  const range = Math.max(1, freqHi - freqLo);
   for (let i = 0; i < 128; i++) {
-    // Boost higher bins to compensate for natural high-frequency roll-off in music
+    const srcBin = Math.round(freqLo + (i / 127) * range);
     const weight = 1 + Math.pow(i / 127, 0.5) * 1.8;
-    freqSmooth[i] = lerp(freqSmooth[i], audioData[i] * sens * weight, 0.3);
+    freqSmooth[i] = lerp(freqSmooth[i], audioData[srcBin] * sens * weight, 0.3);
   }
 }
 

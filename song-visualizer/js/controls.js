@@ -38,6 +38,40 @@ document.querySelectorAll('.bg-btn').forEach(btn => {
   });
 });
 
+// ---- Frequency range dual slider ----
+function binToHz(bin) {
+  const hz = Math.round(bin * 44100 / 256);
+  return hz >= 1000 ? (hz / 1000).toFixed(1) + ' kHz' : hz + ' Hz';
+}
+
+function updateFreqRange() {
+  const lo = parseInt(document.getElementById('freqLoSlider').value);
+  const hi = parseInt(document.getElementById('freqHiSlider').value);
+  freqLo = Math.min(lo, hi - 1);
+  freqHi = Math.max(hi, lo + 1);
+  document.getElementById('freqLoLabel').textContent = binToHz(freqLo);
+  document.getElementById('freqHiLabel').textContent = binToHz(freqHi);
+  const fill = document.getElementById('freqRangeFill');
+  fill.style.left  = (freqLo / 127 * 100) + '%';
+  fill.style.width = ((freqHi - freqLo) / 127 * 100) + '%';
+}
+
+document.getElementById('freqLoSlider').addEventListener('input', () => {
+  const lo = parseInt(document.getElementById('freqLoSlider').value);
+  const hi = parseInt(document.getElementById('freqHiSlider').value);
+  if (lo >= hi) document.getElementById('freqLoSlider').value = hi - 1;
+  updateFreqRange();
+});
+
+document.getElementById('freqHiSlider').addEventListener('input', () => {
+  const lo = parseInt(document.getElementById('freqLoSlider').value);
+  const hi = parseInt(document.getElementById('freqHiSlider').value);
+  if (hi <= lo) document.getElementById('freqHiSlider').value = lo + 1;
+  updateFreqRange();
+});
+
+updateFreqRange();
+
 // ---- Microphone ----
 function disableMic() {
   if (micSource) { micSource.disconnect(); micSource = null; }
