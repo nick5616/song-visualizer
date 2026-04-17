@@ -227,6 +227,60 @@ const suggestNotes = (currentChord, nextChords, keyRoot, mode) => {
 };
 
 // ============================================================================
+// YIN PITCH DETECTION
+// ============================================================================
+
+function yinDetect(buf, sampleRate) {
+  const half = Math.floor(buf.length / 2);
+  const threshold = 0.12;
+
+  const diff = new Float32Array(half);
+  for (let tau = 1; tau < half; tau++) {
+    for (let i = 0; i < half; i++) {
+      const d = buf[i] - buf[i + tau];
+      diff[tau] += d * d;
+    }
+  }
+
+  const cmnd = new Float32Array(half);
+  cmnd[0] = 1;
+  let runSum = 0;
+  for (let tau = 1; tau < half; tau++) {
+    runSum += diff[tau];
+    cmnd[tau] = runSum === 0 ? 0 : diff[tau] * tau / runSum;
+  }
+
+  let tau = 2;
+  while (tau < half) {
+    if (cmnd[tau] < threshold) {
+      while (tau + 1 < half && cmnd[tau + 1] < cmnd[tau]) tau++;
+      break;
+    }
+    tau++;
+  }
+  if (tau === half) return 0;
+
+  const x0 = tau > 1 ? tau - 1 : tau;
+  const x2 = tau + 1 < half ? tau + 1 : tau;
+  let best;
+  if (x0 === tau) {
+    best = cmnd[tau] <= cmnd[x2] ? tau : x2;
+  } else if (x2 === tau) {
+    best = cmnd[tau] <= cmnd[x0] ? tau : x0;
+  } else {
+    const s0 = cmnd[x0], s1 = cmnd[tau], s2 = cmnd[x2];
+    best = tau + (s2 - s0) / (2 * (2 * s1 - s2 - s0));
+  }
+  return sampleRate / best;
+}
+
+function freqToMidi(freq) {
+  if (freq <= 0) return null;
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  return (midi >= 36 && midi <= 96) ? midi : null;
+}
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 
@@ -285,6 +339,9 @@ function MidiMuse() {
   const [scrollX, setScrollX] = useState(0);
   const [autoFollow, setAutoFollow] = useState(true);
 
+  const [inputMode, setInputMode] = useState("midi");
+  const [voicePitch, setVoicePitch] = useState(null);
+
   const recordStartRef = useRef(null);
   const activeNotesRef = useRef(new Map());
   const synthRef = useRef(null);
@@ -294,6 +351,11 @@ function MidiMuse() {
   const canvasRef = useRef(null);
   const improvCanvasRef = useRef(null);
   const isRecordingRef = useRef(isRecording);
+  const micStreamRef = useRef(null);
+  const voiceAudioCtxRef = useRef(null);
+  const voiceProcessorRef = useRef(null);
+  const voiceActivePitchRef = useRef(null);
+  const voiceStableRef = useRef({ pitch: null, count: 0 });
 
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
@@ -430,6 +492,62 @@ function MidiMuse() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [octaveShift, selectedNoteId]);
+
+  useEffect(() => {
+    const stopVoice = () => {
+      if (voiceProcessorRef.current) { voiceProcessorRef.current.disconnect(); voiceProcessorRef.current = null; }
+      if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+      if (voiceAudioCtxRef.current) { voiceAudioCtxRef.current.close(); voiceAudioCtxRef.current = null; }
+      if (voiceActivePitchRef.current !== null) {
+        handleNoteOff(voiceActivePitchRef.current);
+        voiceActivePitchRef.current = null;
+        setVoicePitch(null);
+      }
+      voiceStableRef.current = { pitch: null, count: 0 };
+    };
+
+    if (inputMode !== "voice") { stopVoice(); return; }
+
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } })
+      .then((stream) => {
+        micStreamRef.current = stream;
+        const ctx = new AudioContext({ sampleRate: 44100 });
+        voiceAudioCtxRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const processor = ctx.createScriptProcessor(2048, 1, 1);
+        voiceProcessorRef.current = processor;
+
+        processor.onaudioprocess = (e) => {
+          const buf = e.inputBuffer.getChannelData(0);
+          const freq = yinDetect(buf, ctx.sampleRate);
+          const midi = (freq > 60 && freq < 1500) ? freqToMidi(freq) : null;
+
+          const stable = voiceStableRef.current;
+          if (midi === stable.pitch) {
+            stable.count++;
+          } else {
+            stable.pitch = midi;
+            stable.count = 1;
+          }
+
+          if (stable.count === 2) {
+            const prev = voiceActivePitchRef.current;
+            if (midi !== prev) {
+              if (prev !== null) handleNoteOff(prev);
+              if (midi !== null) handleNoteOn(midi, 80);
+              voiceActivePitchRef.current = midi;
+              setVoicePitch(midi);
+            }
+          }
+        };
+
+        source.connect(processor);
+        processor.connect(ctx.destination);
+      })
+      .catch(() => setInputMode("midi"));
+
+    return stopVoice;
+  }, [inputMode]);
 
   useEffect(() => {
     const tick = () => {
@@ -1330,23 +1448,69 @@ function MidiMuse() {
           <button onClick={clearNotes} style={{ ...ctrlStyle, cursor: "pointer" }}>CLEAR</button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, marginLeft: "auto", fontFamily: UI_FONT }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: midiStatus === "connected" ? "#5ee08e" :
-                        midiStatus === "no-devices" ? "#e0b85e" : "#e05e5e"
-          }} />
-          {midiInputs.length > 0 ? (
-            <select value={selectedInputId || ""} onChange={(e) => setSelectedInputId(e.target.value)} style={{ ...ctrlStyle, maxWidth: 180 }}>
-              {midiInputs.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          ) : (
-            <span style={{ color: "#888" }}>
-              {midiStatus === "unsupported" ? "MIDI unsupported" :
-               midiStatus === "denied" ? "MIDI denied" : "No MIDI · use A–K keys"}
-            </span>
-          )}
+        <div style={{ display: "flex", border: "1px solid #2a2a35", borderRadius: 4, marginLeft: "auto" }}>
+          <button
+            onClick={() => setInputMode("midi")}
+            style={{
+              padding: "6px 14px", fontSize: 12,
+              background: inputMode === "midi" ? "#2a2a40" : "transparent",
+              color: inputMode === "midi" ? "#fff" : "#888",
+              border: "none", cursor: "pointer",
+              letterSpacing: "0.1em",
+              fontFamily: UI_FONT,
+            }}
+          >
+            MIDI
+          </button>
+          <button
+            onClick={() => setInputMode("voice")}
+            style={{
+              padding: "6px 14px", fontSize: 12,
+              background: inputMode === "voice" ? "#1a3a2a" : "transparent",
+              color: inputMode === "voice" ? "#5ee8a0" : "#888",
+              border: "none", cursor: "pointer",
+              letterSpacing: "0.1em",
+              fontFamily: UI_FONT,
+            }}
+          >
+            VOICE
+          </button>
         </div>
+
+        {inputMode === "midi" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontFamily: UI_FONT }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: midiStatus === "connected" ? "#5ee08e" :
+                          midiStatus === "no-devices" ? "#e0b85e" : "#e05e5e"
+            }} />
+            {midiInputs.length > 0 ? (
+              <select value={selectedInputId || ""} onChange={(e) => setSelectedInputId(e.target.value)} style={{ ...ctrlStyle, maxWidth: 180 }}>
+                {midiInputs.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            ) : (
+              <span style={{ color: "#888" }}>
+                {midiStatus === "unsupported" ? "MIDI unsupported" :
+                 midiStatus === "denied" ? "MIDI denied" : "No MIDI · use A–K keys"}
+              </span>
+            )}
+          </div>
+        )}
+
+        {inputMode === "voice" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontFamily: UI_FONT }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: voicePitch !== null ? "#5ee08e" : "#555",
+              boxShadow: voicePitch !== null ? "0 0 6px #5ee08e" : "none",
+            }} />
+            <span style={{ color: "#888", minWidth: 60 }}>
+              {voicePitch !== null
+                ? `${NOTE_NAMES[voicePitch % 12]}${Math.floor(voicePitch / 12) - 1}`
+                : "listening…"}
+            </span>
+          </div>
+        )}
       </div>
 
       {producerStyle && (
