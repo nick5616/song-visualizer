@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mic Monitor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0e0e0e;
+    color: #e0e0e0;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 28px;
+    padding: 32px;
+  }
+  h1 { font-size: 1rem; letter-spacing: 0.15em; color: #555; text-transform: uppercase; }
+  #status {
+    font-size: 0.85rem;
+    color: #666;
+    min-height: 1.2em;
+    letter-spacing: 0.05em;
+  }
+  #status.active { color: #5f5; }
+  #status.error  { color: #f55; }
+  button {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    color: #ccc;
+    padding: 10px 28px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  button:hover { border-color: #777; color: #fff; }
+  button.on { border-color: #5f5; color: #5f5; }
+  .row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 280px;
+  }
+  label { font-size: 0.75rem; color: #555; letter-spacing: 0.1em; width: 100%; display: flex; justify-content: space-between; }
+  input[type=range] {
+    width: 100%;
+    accent-color: #5f5;
+  }
+  #latency-val { color: #aaa; }
+</style>
+</head>
+<body>
+<h1>Mic Monitor</h1>
+<div id="status">idle</div>
+<button id="btn">START</button>
+
+<div class="row">
+  <label>
+    <span>Extra latency</span>
+    <span id="latency-val">0 ms</span>
+  </label>
+  <input type="range" id="delay-slider" min="0" max="500" step="5" value="0">
+</div>
+
+<script>
+// Inline AudioWorklet processor as a Blob URL so no separate file is needed
+const PROCESSOR_CODE = `
+class PassthroughProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    // ring buffer for added delay
+    this._extraDelaySamples = 0;
+    this._buf = null;
+    this._writePos = 0;
+    this._readPos = 0;
+    this.port.onmessage = (e) => {
+      const newDelay = e.data.delaySamples | 0;
+      if (newDelay === this._extraDelaySamples) return;
+      // Resize ring buffer — keep it simple, just allocate fresh
+      const size = newDelay + 4096; // pad
+      const newBuf = new Float32Array(size);
+      this._buf = newBuf;
+      this._writePos = 0;
+      this._readPos = 0;
+      // pre-fill with silence equal to delay
+      this._writePos = newDelay % size;
+      this._extraDelaySamples = newDelay;
+    };
+  }
+
+  process(inputs, outputs) {
+    const input  = inputs[0];
+    const output = outputs[0];
+    if (!input || !input[0]) return true;
+
+    const inCh  = input[0];
+    const outCh = output[0];
+
+    if (this._extraDelaySamples === 0 || !this._buf) {
+      // Zero extra delay — direct copy, minimum latency
+      outCh.set(inCh);
+      return true;
+    }
+
+    const buf  = this._buf;
+    const size = buf.length;
+    for (let i = 0; i < inCh.length; i++) {
+      buf[this._writePos] = inCh[i];
+      outCh[i] = buf[this._readPos];
+      this._writePos = (this._writePos + 1) % size;
+      this._readPos  = (this._readPos  + 1) % size;
+    }
+    return true;
+  }
+}
+registerProcessor('passthrough', PassthroughProcessor);
+`;
+
+const blob = new Blob([PROCESSOR_CODE], { type: 'application/javascript' });
+const workletUrl = URL.createObjectURL(blob);
+
+let ctx, sourceNode, workletNode, gainNode;
+let running = false;
+
+const btn    = document.getElementById('btn');
+const status = document.getElementById('status');
+const slider = document.getElementById('delay-slider');
+const latVal = document.getElementById('latency-val');
+
+slider.addEventListener('input', () => {
+  const ms = parseInt(slider.value);
+  latVal.textContent = ms + ' ms';
+  if (workletNode && ctx) {
+    const samples = (ms / 1000) * ctx.sampleRate;
+    workletNode.port.postMessage({ delaySamples: samples });
+  }
+});
+
+btn.addEventListener('click', async () => {
+  if (!running) {
+    await start();
+  } else {
+    stop();
+  }
+});
+
+async function start() {
+  try {
+    status.textContent = 'requesting mic…';
+    status.className = '';
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        // Request smallest buffer possible
+        latency: 0,
+        sampleRate: 48000,
+      }
+    });
+
+    // Create AudioContext with lowest possible latency hint
+    ctx = new AudioContext({
+      latencyHint: 'interactive',  // 'playback' is higher; 'interactive' lowest standard hint
+      sampleRate: 48000,
+    });
+
+    await ctx.audioWorklet.addModule(workletUrl);
+
+    sourceNode  = ctx.createMediaStreamSource(stream);
+    workletNode = new AudioWorkletNode(ctx, 'passthrough', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+    });
+
+    // Gain node so we can mute cleanly
+    gainNode = ctx.createGain();
+    gainNode.gain.value = 1;
+
+    sourceNode.connect(workletNode);
+    workletNode.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    // Apply initial delay if slider isn't at 0
+    const ms = parseInt(slider.value);
+    if (ms > 0) {
+      const samples = (ms / 1000) * ctx.sampleRate;
+      workletNode.port.postMessage({ delaySamples: samples });
+    }
+
+    running = true;
+    btn.textContent = 'STOP';
+    btn.classList.add('on');
+
+    // Show actual measured latency
+    const inputLatency  = (stream.getAudioTracks()[0].getSettings().latency ?? 0) * 1000;
+    const outputLatency = ctx.outputLatency * 1000;
+    const baseLatency   = ctx.baseLatency   * 1000;
+    status.textContent  = `live · base ${baseLatency.toFixed(1)}ms · out ${outputLatency.toFixed(1)}ms`;
+    status.className    = 'active';
+
+  } catch (err) {
+    status.textContent = 'error: ' + err.message;
+    status.className   = 'error';
+  }
+}
+
+function stop() {
+  if (sourceNode)  sourceNode.disconnect();
+  if (workletNode) workletNode.disconnect();
+  if (gainNode)    gainNode.disconnect();
+  if (ctx)         ctx.close();
+  ctx = sourceNode = workletNode = gainNode = null;
+  running = false;
+  btn.textContent = 'START';
+  btn.classList.remove('on');
+  status.textContent = 'idle';
+  status.className   = '';
+}
+</script>
+</body>
+</html>
