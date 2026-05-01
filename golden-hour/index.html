@@ -630,7 +630,7 @@
                 </div>
 
                 <div class="launch-row">
-                    <label>Mic / Audio Input</label>
+                    <label>Mic Input (song auto-detected via BlackHole)</label>
                     <select id="mic-select">
                         <option value="">Default</option>
                     </select>
@@ -830,6 +830,10 @@
                         >
                             Simulate Beat Hit
                         </button>
+                        <label class="checkbox-row" style="margin-top: 8px">
+                            <input type="checkbox" id="mic-enabled-toggle" checked />
+                            <span>Mic input active</span>
+                        </label>
                     </div>
 
                     <!-- PALETTE -->
@@ -1088,35 +1092,58 @@
             // AUDIO
             // ═══════════════════════════════════════════════════
 
-            let audioCtx,
-                analyserL, analyserR,
-                dataArrayL, dataArrayR,
-                micActive = false;
+            let audioCtx;
+            // Song source (BlackHole) — stereo L/R
+            let songAnalyserL, songAnalyserR, songDataL, songDataR, songActive = false;
+            // Mic source — mono, contributes to overall energy
+            let micAnalyser, micDataArr, micActive = false;
 
-            async function initMic(statusEl, deviceId) {
+            function makeAnalyser() {
+                const a = audioCtx.createAnalyser();
+                a.fftSize = 256;
+                a.smoothingTimeConstant = 0.5;
+                return a;
+            }
+
+            async function initAudio(micDeviceId, statusEl) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+                // Always try to grab BlackHole for the song feed
                 try {
-                    const audioConstraint = deviceId
-                        ? { deviceId: { exact: deviceId } }
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const bh = devices.find(
+                        (d) => d.kind === "audioinput" &&
+                               d.label.toLowerCase().includes("blackhole"),
+                    );
+                    if (bh) {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            audio: { deviceId: { exact: bh.deviceId } },
+                        });
+                        const source = audioCtx.createMediaStreamSource(stream);
+                        const splitter = audioCtx.createChannelSplitter(2);
+                        source.connect(splitter);
+                        songAnalyserL = makeAnalyser();
+                        songAnalyserR = makeAnalyser();
+                        splitter.connect(songAnalyserL, 0);
+                        splitter.connect(songAnalyserR, 1);
+                        songDataL = new Uint8Array(songAnalyserL.frequencyBinCount);
+                        songDataR = new Uint8Array(songAnalyserR.frequencyBinCount);
+                        songActive = true;
+                    }
+                } catch (_) {}
+
+                // Grab the mic separately
+                try {
+                    const constraint = micDeviceId
+                        ? { deviceId: { exact: micDeviceId } }
                         : true;
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: audioConstraint,
+                        audio: constraint,
                     });
-                    audioCtx = new (
-                        window.AudioContext || window.webkitAudioContext
-                    )();
                     const source = audioCtx.createMediaStreamSource(stream);
-                    const splitter = audioCtx.createChannelSplitter(2);
-                    source.connect(splitter);
-                    analyserL = audioCtx.createAnalyser();
-                    analyserR = audioCtx.createAnalyser();
-                    [analyserL, analyserR].forEach((a) => {
-                        a.fftSize = 256;
-                        a.smoothingTimeConstant = 0.5;
-                    });
-                    splitter.connect(analyserL, 0);
-                    splitter.connect(analyserR, 1);
-                    dataArrayL = new Uint8Array(analyserL.frequencyBinCount);
-                    dataArrayR = new Uint8Array(analyserR.frequencyBinCount);
+                    micAnalyser = makeAnalyser();
+                    source.connect(micAnalyser);
+                    micDataArr = new Uint8Array(micAnalyser.frequencyBinCount);
                     micActive = true;
                     if (statusEl) {
                         statusEl.textContent = "mic: live ●";
@@ -1124,6 +1151,15 @@
                     }
                 } catch (e) {
                     if (statusEl) statusEl.textContent = "mic: no access";
+                }
+
+                // Fallback: no BlackHole found — use mic as song source with L/R split
+                if (!songActive && micActive) {
+                    songAnalyserL = micAnalyser;
+                    songAnalyserR = micAnalyser;
+                    songDataL = micDataArr;
+                    songDataR = micDataArr;
+                    songActive = true;
                 }
             }
 
@@ -1147,12 +1183,20 @@
             }
 
             function getRealMicData() {
-                if (!micActive || !analyserL) return null;
-                const L = readChannel(analyserL, dataArrayL);
-                const R = readChannel(analyserR, dataArrayR);
+                if (!songActive) return null;
+                const L = readChannel(songAnalyserL, songDataL);
+                const R = readChannel(songAnalyserR, songDataR);
                 const sum = L.level + R.level;
+                const songLevel = (L.level + R.level) / 2;
+
+                // Mic adds to overall energy (singing/clapping boosts visuals)
+                let micBoost = 0;
+                if (micActive && micAnalyser !== songAnalyserL) {
+                    micBoost = readChannel(micAnalyser, micDataArr).level * 0.5;
+                }
+
                 return {
-                    level: (L.level + R.level) / 2,
+                    level: Math.max(songLevel, micBoost),
                     bass:  (L.bass  + R.bass)  / 2,
                     mid:   (L.mid   + R.mid)   / 2,
                     high:  (L.high  + R.high)  / 2,
@@ -1546,7 +1590,7 @@
 
             function getAudio() {
                 if (mode === "debug") {
-                    const real = micActive ? getRealMicData() : null;
+                    const real = songActive ? getRealMicData() : null;
                     if (real) {
                         return {
                             level: Math.max(real.level, simAudio.level),
@@ -1714,6 +1758,12 @@
                     });
 
                 document
+                    .getElementById("mic-enabled-toggle")
+                    .addEventListener("change", (e) => {
+                        micActive = e.target.checked && !!micAnalyser;
+                    });
+
+                document
                     .getElementById("toggle-fullscreen-btn")
                     .addEventListener("click", () => {
                         const dc = document.getElementById("debug-canvas");
@@ -1792,7 +1842,7 @@
                         0.55,
                     );
 
-                    if (micActive) {
+                    if (songActive) {
                         const r = getRealMicData();
                         if (r) {
                             document.getElementById(
@@ -1836,16 +1886,16 @@
 
                     if (isDebug) {
                         mode = "debug";
-                        await initMic(
-                            document.getElementById("mic-status-debug"),
+                        await initAudio(
                             selectedDeviceId,
+                            document.getElementById("mic-status-debug"),
                         );
                         document.getElementById("debug-mode").style.display =
                             "flex";
                         startDebug();
                     } else {
                         mode = "fullscreen";
-                        await initMic(null, selectedDeviceId);
+                        await initAudio(selectedDeviceId, null);
                         document.getElementById(
                             "fullscreen-mode",
                         ).style.display = "block";
@@ -1860,7 +1910,7 @@
                         document.getElementById("mic-select").value || undefined;
                     mode = "fullscreen";
                     document.getElementById("launch").style.display = "none";
-                    await initMic(null, selectedDeviceId);
+                    await initAudio(selectedDeviceId, null);
                     document.getElementById("fullscreen-mode").style.display =
                         "block";
                     startFullscreen();
