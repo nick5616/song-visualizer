@@ -107,6 +107,31 @@
                 opacity: 0.5;
             }
 
+            select#mic-select {
+                background: var(--gold-faint);
+                border: 1px solid var(--border);
+                color: var(--gold);
+                padding: 10px 14px;
+                font-family: "Bebas Neue", sans-serif;
+                font-size: 14px;
+                letter-spacing: 0.1em;
+                width: 100%;
+                outline: none;
+                cursor: pointer;
+                transition: border-color 0.3s;
+                appearance: none;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b8860b' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 14px center;
+            }
+            select#mic-select:focus {
+                border-color: var(--gold);
+            }
+            select#mic-select option {
+                background: #0e0d12;
+                color: var(--gold);
+            }
+
             .checkbox-row {
                 display: flex;
                 align-items: center;
@@ -604,6 +629,13 @@
                     <input type="time" id="time-input" />
                 </div>
 
+                <div class="launch-row">
+                    <label>Mic / Audio Input</label>
+                    <select id="mic-select">
+                        <option value="">Default</option>
+                    </select>
+                </div>
+
                 <label class="checkbox-row">
                     <input type="checkbox" id="debug-checkbox" />
                     <span>Debug Mode</span>
@@ -984,6 +1016,7 @@
                     secondary: [60, 55, 90],
                     accent: [180, 160, 220],
                     glow: [100, 80, 180],
+                    ember: [210, 40, 15],
                 };
                 const dawn = {
                     bg: [18, 10, 12],
@@ -991,6 +1024,7 @@
                     secondary: [180, 90, 60],
                     accent: [255, 200, 150],
                     glow: [240, 160, 80],
+                    ember: [255, 165, 55],
                 };
                 const golden = {
                     bg: [12, 8, 2],
@@ -998,6 +1032,7 @@
                     secondary: [220, 120, 20],
                     accent: [255, 220, 100],
                     glow: [255, 160, 20],
+                    ember: [255, 215, 85],
                 };
                 const electric = {
                     bg: [4, 4, 10],
@@ -1005,6 +1040,7 @@
                     secondary: [30, 180, 220],
                     accent: [255, 240, 120],
                     glow: [50, 200, 255],
+                    ember: [230, 35, 12],
                 };
 
                 let a, b, t;
@@ -1032,13 +1068,20 @@
 
                 t = Math.max(0, Math.min(1, smoothstep(t)));
                 const lerp = (k) => lerpColor(a[k], b[k], t);
-                return {
+                const palette = {
                     bg: lerp("bg"),
                     primary: lerp("primary"),
                     secondary: lerp("secondary"),
                     accent: lerp("accent"),
                     glow: lerp("glow"),
+                    ember: lerp("ember"),
                 };
+                // Shift embers to red starting at sunset (phase 0.75), fully red by 0.9
+                if (phase >= 0.75) {
+                    const rt = smoothstep(Math.min((phase - 0.75) / 0.15, 1.0));
+                    palette.ember = lerpColor([255, 215, 85], [220, 45, 15], rt);
+                }
+                return palette;
             }
 
             // ═══════════════════════════════════════════════════
@@ -1050,10 +1093,13 @@
                 dataArray,
                 micActive = false;
 
-            async function initMic(statusEl) {
+            async function initMic(statusEl, deviceId) {
                 try {
+                    const audioConstraint = deviceId
+                        ? { deviceId: { exact: deviceId } }
+                        : true;
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
+                        audio: audioConstraint,
                     });
                     audioCtx = new (
                         window.AudioContext || window.webkitAudioContext
@@ -1111,7 +1157,12 @@
                     H = canvas.height;
                 let particles = [];
                 let bursts = [];
+                let hibursts = [];
                 let lastBass = 0;
+                let lastHigh = 0;
+                let flush = null;
+                let silenceFrames = 0;
+                let flushArmed = false;
 
                 function resize(w, h) {
                     W = w;
@@ -1152,7 +1203,7 @@
                             (0.05 + audio.level * 0.95);
                         if (this.type === "spark") {
                             ctx.save();
-                            ctx.strokeStyle = rgb(palette.accent, alpha);
+                            ctx.strokeStyle = rgb(palette.ember, alpha);
                             ctx.lineWidth = this.size * 0.5;
                             ctx.beginPath();
                             ctx.moveTo(this.x, this.y);
@@ -1171,7 +1222,7 @@
                                 this.y,
                                 this.size * 3,
                             );
-                            g.addColorStop(0, rgb(palette.accent, alpha));
+                            g.addColorStop(0, rgb(palette.ember, alpha));
                             g.addColorStop(
                                 0.4,
                                 rgb(palette.primary, alpha * 0.5),
@@ -1292,6 +1343,24 @@
                     lastBass = audio.bass;
                 }
 
+                function checkHighBeat(audio, palette) {
+                    const delta = audio.high - lastHigh;
+                    if (delta > 0.1 && audio.high > 0.12) {
+                        const count = 1 + Math.floor(audio.high * 2);
+                        for (let i = 0; i < count; i++) {
+                            hibursts.push({
+                                x: Math.random() * W,
+                                y: H * 0.1 + Math.random() * H * 0.8,
+                                r: 0,
+                                maxR: 25 + audio.high * 65,
+                                alpha: 0.45 + audio.high * 0.35,
+                                color: palette.accent,
+                            });
+                        }
+                    }
+                    lastHigh = audio.high;
+                }
+
                 function forceBeat(palette) {
                     bursts.push({
                         x: W / 2 + (Math.random() - 0.5) * W * 0.3,
@@ -1316,10 +1385,37 @@
                     const count = Math.floor(8 + audio.level * (52 + phase * 140));
                     ensureParticles(count);
 
+                    // Song-onset detection (works cleanly with BlackHole digital silence)
+                    if (audio.level < 0.04) {
+                        silenceFrames++;
+                        if (silenceFrames > 90) flushArmed = true;
+                    } else {
+                        if (flushArmed && audio.level > 0.08) {
+                            flush = { x: -W * 0.08, speed: W / 80 };
+                            flushArmed = false;
+                        }
+                        silenceFrames = 0;
+                    }
+
                     ctx.fillStyle = rgb(palette.bg, 0.15);
                     ctx.fillRect(0, 0, W, H);
 
                     drawAurora(phase, audio, palette);
+
+                    // Flush wave sweeps left→right on new song
+                    if (flush) {
+                        flush.x += flush.speed;
+                        const hw = W * 0.07;
+                        const fg = ctx.createLinearGradient(flush.x - hw, 0, flush.x + hw, 0);
+                        fg.addColorStop(0, rgb(palette.glow, 0));
+                        fg.addColorStop(0.4, rgb(palette.primary, 0.25));
+                        fg.addColorStop(0.5, rgb(palette.accent, 0.55));
+                        fg.addColorStop(0.6, rgb(palette.primary, 0.25));
+                        fg.addColorStop(1, rgb(palette.glow, 0));
+                        ctx.fillStyle = fg;
+                        ctx.fillRect(flush.x - hw, 0, hw * 2, H);
+                        if (flush.x > W * 1.1) flush = null;
+                    }
 
                     const cx = W / 2,
                         cy = H * 0.5;
@@ -1371,6 +1467,18 @@
                         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
                         ctx.strokeStyle = rgb(b.color, b.alpha);
                         ctx.lineWidth = 2;
+                        ctx.stroke();
+                    });
+
+                    checkHighBeat(audio, palette);
+                    hibursts = hibursts.filter((b) => b.alpha > 0.01);
+                    hibursts.forEach((b) => {
+                        b.r += 14;
+                        b.alpha *= 0.78;
+                        ctx.beginPath();
+                        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                        ctx.strokeStyle = rgb(b.color, b.alpha);
+                        ctx.lineWidth = 0.8;
                         ctx.stroke();
                     });
 
@@ -1698,19 +1806,22 @@
                         if (isDebug) debugMinutes = hh * 60 + mm;
                     }
 
+                    const selectedDeviceId =
+                        document.getElementById("mic-select").value || undefined;
                     document.getElementById("launch").style.display = "none";
 
                     if (isDebug) {
                         mode = "debug";
                         await initMic(
                             document.getElementById("mic-status-debug"),
+                            selectedDeviceId,
                         );
                         document.getElementById("debug-mode").style.display =
                             "flex";
                         startDebug();
                     } else {
                         mode = "fullscreen";
-                        await initMic(null);
+                        await initMic(null, selectedDeviceId);
                         document.getElementById(
                             "fullscreen-mode",
                         ).style.display = "block";
@@ -1721,13 +1832,41 @@
             document
                 .getElementById("skip-btn")
                 .addEventListener("click", async () => {
+                    const selectedDeviceId =
+                        document.getElementById("mic-select").value || undefined;
                     mode = "fullscreen";
                     document.getElementById("launch").style.display = "none";
-                    await initMic(null);
+                    await initMic(null, selectedDeviceId);
                     document.getElementById("fullscreen-mode").style.display =
                         "block";
                     startFullscreen();
                 });
+
+            // Populate mic input dropdown on load
+            (async function populateMicDevices() {
+                const sel = document.getElementById("mic-select");
+                try {
+                    // Enumerate WHILE stream is open — browsers expose labels only with an active stream
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    stream.getTracks().forEach((t) => t.stop());
+                    const inputs = devices.filter((d) => d.kind === "audioinput");
+                    const hasLabels = inputs.some((d) => d.label);
+                    if (!hasLabels) {
+                        sel.innerHTML = '<option value="">Open via localhost, not file://</option>';
+                        return;
+                    }
+                    sel.innerHTML = "";
+                    inputs.forEach((d) => {
+                        const opt = document.createElement("option");
+                        opt.value = d.deviceId;
+                        opt.textContent = d.label;
+                        sel.appendChild(opt);
+                    });
+                } catch (e) {
+                    sel.innerHTML = `<option value="">Could not list devices: ${e.message}</option>`;
+                }
+            })();
 
             (function idle() {
                 requestAnimationFrame(idle);
