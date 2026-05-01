@@ -1098,10 +1098,10 @@
             // Mic source — mono, contributes to overall energy
             let micAnalyser, micDataArr, micActive = false;
 
-            function makeAnalyser() {
+            function makeAnalyser(smooth = 0.4) {
                 const a = audioCtx.createAnalyser();
                 a.fftSize = 256;
-                a.smoothingTimeConstant = 0.5;
+                a.smoothingTimeConstant = smooth;
                 return a;
             }
 
@@ -1141,7 +1141,7 @@
                         audio: constraint,
                     });
                     const source = audioCtx.createMediaStreamSource(stream);
-                    micAnalyser = makeAnalyser();
+                    micAnalyser = makeAnalyser(0.55);
                     source.connect(micAnalyser);
                     micDataArr = new Uint8Array(micAnalyser.frequencyBinCount);
                     micActive = true;
@@ -1163,7 +1163,7 @@
                 }
             }
 
-            function readChannel(analyser, dataArray) {
+            function readChannel(analyser, dataArray, exp = 1.5) {
                 analyser.getByteFrequencyData(dataArray);
                 const len = dataArray.length;
                 const bassEnd = Math.floor(len * 0.1),
@@ -1175,7 +1175,6 @@
                 bass /= bassEnd * 255;
                 mid /= (midEnd - bassEnd) * 255;
                 high /= (len - midEnd) * 255;
-                const exp = 1.5;
                 bass = Math.pow(bass, exp);
                 mid = Math.pow(mid, exp);
                 high = Math.pow(high, exp);
@@ -1184,15 +1183,16 @@
 
             function getRealMicData() {
                 if (!songActive) return null;
-                const L = readChannel(songAnalyserL, songDataL);
-                const R = readChannel(songAnalyserR, songDataR);
+                // Gentler curve for the clean digital song signal — 1.5 crushes it
+                const L = readChannel(songAnalyserL, songDataL, 1.1);
+                const R = readChannel(songAnalyserR, songDataR, 1.1);
                 const sum = L.level + R.level;
                 const songLevel = (L.level + R.level) / 2;
 
                 // Mic adds to overall energy (singing/clapping boosts visuals)
                 let micBoost = 0;
                 if (micActive && micAnalyser !== songAnalyserL) {
-                    micBoost = readChannel(micAnalyser, micDataArr).level * 0.5;
+                    micBoost = readChannel(micAnalyser, micDataArr, 1.5).level * 0.5;
                 }
 
                 return {
@@ -1248,7 +1248,7 @@
                         this.type = Math.random() > 0.7 ? "spark" : "orb";
                     }
                     update(audio) {
-                        const boost = 1 + audio.level * 3 + audio.bass * 2;
+                        const boost = 1 + audio.level * 6 + audio.bass * 5;
                         this.wobble += this.wobbleSpeed;
                         this.x += this.drift + Math.sin(this.wobble) * 0.3;
                         this.y -= this.baseSpeed * boost;
@@ -1309,7 +1309,7 @@
 
                 function drawAurora(phase, audio, palette) {
                     const t = Date.now() * 0.0003;
-                    const intensity = phase * 0.05 + audio.level * 1.4;
+                    const intensity = phase * 0.05 + audio.level * 2.8;
                     for (let band = 0; band < 3; band++) {
                         const yBase =
                             H * (0.12 + band * 0.22 + Math.sin(t + band) * 0.07);
@@ -1324,7 +1324,7 @@
                                 yBase +
                                 Math.sin(nx * 8 + t + band * 2) * (H * 0.08) +
                                 Math.sin(nx * 3 - t * 0.7 + band) * (H * 0.055) +
-                                ch.mid * (H * 0.13) * Math.sin(nx * 15 + t * 2);
+                                ch.mid * (H * 0.25) * Math.sin(nx * 15 + t * 2);
                             x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                         }
                         ctx.lineTo(W, H);
@@ -1352,8 +1352,8 @@
 
                 function drawWaveRing(cx, cy, radius, phase, audio, palette) {
                     const points = 120,
-                        bassBoost = 1 + audio.bass * 4,
-                        intensity = 0.03 + audio.level * 2.2;
+                        bassBoost = 1 + audio.bass * 9,
+                        intensity = 0.03 + audio.level * 4.0;
                     ctx.save();
                     ctx.beginPath();
                     for (let i = 0; i <= points; i++) {
@@ -1395,8 +1395,8 @@
                             x: W / 2 + bias + (Math.random() - 0.5) * W * 0.35,
                             y: H / 2 + (Math.random() - 0.5) * H * 0.45,
                             r: 0,
-                            maxR: 100 + audio.bass * 200,
-                            alpha: 0.6,
+                            maxR: 180 + audio.bass * 400,
+                            alpha: 0.85,
                             color:
                                 Math.random() > 0.5
                                     ? palette.primary
@@ -1446,7 +1446,7 @@
 
                 function frame(phase, audio) {
                     const palette = getPalette(phase);
-                    const count = Math.floor(8 + audio.level * (52 + phase * 140));
+                    const count = Math.floor(8 + audio.level * (120 + phase * 220));
                     ensureParticles(count);
 
                     // Song-onset detection (works cleanly with BlackHole digital silence)
@@ -1483,7 +1483,7 @@
 
                     const cx = W / 2,
                         cy = H * 0.5;
-                    const glowR = H * 0.2 + phase * H * 0.06 + audio.level * H * 0.3;
+                    const glowR = H * 0.2 + phase * H * 0.06 + audio.level * H * 0.55;
                     const cg = ctx.createRadialGradient(
                         cx,
                         cy,
@@ -1494,7 +1494,7 @@
                     );
                     cg.addColorStop(
                         0,
-                        rgb(palette.glow, 0.02 + audio.level * 0.28),
+                        rgb(palette.glow, 0.02 + audio.level * 0.55),
                     );
                     cg.addColorStop(0.4, rgb(palette.primary, 0.05));
                     cg.addColorStop(1, "transparent");
