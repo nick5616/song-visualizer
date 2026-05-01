@@ -1061,7 +1061,7 @@
                     const source = audioCtx.createMediaStreamSource(stream);
                     analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 256;
-                    analyser.smoothingTimeConstant = 0.8;
+                    analyser.smoothingTimeConstant = 0.5;
                     source.connect(analyser);
                     dataArray = new Uint8Array(analyser.frequencyBinCount);
                     micActive = true;
@@ -1089,6 +1089,10 @@
                 bass /= bassEnd * 255;
                 mid /= (midEnd - bassEnd) * 255;
                 high /= (len - midEnd) * 255;
+                const exp = 1.5;
+                bass = Math.pow(bass, exp);
+                mid = Math.pow(mid, exp);
+                high = Math.pow(high, exp);
                 return {
                     level: bass * 0.45 + mid * 0.2 + high * 0.35,
                     bass,
