@@ -1090,7 +1090,7 @@
                 mid /= (midEnd - bassEnd) * 255;
                 high /= (len - midEnd) * 255;
                 return {
-                    level: bass * 0.5 + mid * 0.3 + high * 0.2,
+                    level: bass * 0.45 + mid * 0.2 + high * 0.35,
                     bass,
                     mid,
                     high,
@@ -1198,16 +1198,16 @@
                     const intensity = phase * 0.05 + audio.level * 1.4;
                     for (let band = 0; band < 3; band++) {
                         const yBase =
-                            H * (0.3 + band * 0.15 + Math.sin(t + band) * 0.05);
+                            H * (0.12 + band * 0.22 + Math.sin(t + band) * 0.07);
                         ctx.save();
                         ctx.beginPath();
                         for (let x = 0; x <= W; x += 4) {
                             const nx = x / W;
                             const y =
                                 yBase +
-                                Math.sin(nx * 8 + t + band * 2) * 60 +
-                                Math.sin(nx * 3 - t * 0.7 + band) * 40 +
-                                audio.mid * 80 * Math.sin(nx * 15 + t * 2);
+                                Math.sin(nx * 8 + t + band * 2) * (H * 0.08) +
+                                Math.sin(nx * 3 - t * 0.7 + band) * (H * 0.055) +
+                                audio.mid * (H * 0.13) * Math.sin(nx * 15 + t * 2);
                             x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                         }
                         ctx.lineTo(W, H);
@@ -1220,12 +1220,12 @@
                         ][band];
                         const g = ctx.createLinearGradient(
                             0,
-                            yBase - 100,
+                            yBase - H * 0.12,
                             0,
-                            yBase + 100,
+                            yBase + H * 0.12,
                         );
                         g.addColorStop(0, rgb(col, 0));
-                        g.addColorStop(0.5, rgb(col, 0.04 * intensity));
+                        g.addColorStop(0.5, rgb(col, 0.055 * intensity));
                         g.addColorStop(1, rgb(col, 0));
                         ctx.fillStyle = g;
                         ctx.fill();
@@ -1272,10 +1272,10 @@
 
                 function checkBeat(audio, palette) {
                     const delta = audio.bass - lastBass;
-                    if (delta > 0.15 && audio.bass > 0.3) {
+                    if (delta > 0.08 && audio.bass > 0.15) {
                         bursts.push({
-                            x: W / 2 + (Math.random() - 0.5) * W * 0.3,
-                            y: H / 2 + (Math.random() - 0.5) * H * 0.3,
+                            x: W / 2 + (Math.random() - 0.5) * W * 0.55,
+                            y: H / 2 + (Math.random() - 0.5) * H * 0.45,
                             r: 0,
                             maxR: 100 + audio.bass * 200,
                             alpha: 0.6,
@@ -1318,8 +1318,8 @@
                     drawAurora(phase, audio, palette);
 
                     const cx = W / 2,
-                        cy = H * 0.42;
-                    const glowR = 150 + phase * 50 + audio.level * 250;
+                        cy = H * 0.5;
+                    const glowR = H * 0.2 + phase * H * 0.06 + audio.level * H * 0.3;
                     const cg = ctx.createRadialGradient(
                         cx,
                         cy,
@@ -1339,11 +1339,11 @@
                     ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
                     ctx.fill();
 
-                    drawWaveRing(cx, cy, 120, phase, audio, palette);
+                    drawWaveRing(cx, cy, H * 0.16, phase, audio, palette);
                     drawWaveRing(
                         cx,
                         cy,
-                        200,
+                        H * 0.26,
                         phase,
                         {
                             ...audio,
