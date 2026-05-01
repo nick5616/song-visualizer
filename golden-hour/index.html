@@ -1089,8 +1089,8 @@
             // ═══════════════════════════════════════════════════
 
             let audioCtx,
-                analyser,
-                dataArray,
+                analyserL, analyserR,
+                dataArrayL, dataArrayR,
                 micActive = false;
 
             async function initMic(statusEl, deviceId) {
@@ -1105,11 +1105,18 @@
                         window.AudioContext || window.webkitAudioContext
                     )();
                     const source = audioCtx.createMediaStreamSource(stream);
-                    analyser = audioCtx.createAnalyser();
-                    analyser.fftSize = 256;
-                    analyser.smoothingTimeConstant = 0.5;
-                    source.connect(analyser);
-                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    const splitter = audioCtx.createChannelSplitter(2);
+                    source.connect(splitter);
+                    analyserL = audioCtx.createAnalyser();
+                    analyserR = audioCtx.createAnalyser();
+                    [analyserL, analyserR].forEach((a) => {
+                        a.fftSize = 256;
+                        a.smoothingTimeConstant = 0.5;
+                    });
+                    splitter.connect(analyserL, 0);
+                    splitter.connect(analyserR, 1);
+                    dataArrayL = new Uint8Array(analyserL.frequencyBinCount);
+                    dataArrayR = new Uint8Array(analyserR.frequencyBinCount);
                     micActive = true;
                     if (statusEl) {
                         statusEl.textContent = "mic: live ●";
@@ -1120,15 +1127,12 @@
                 }
             }
 
-            function getRealMicData() {
-                if (!micActive || !analyser) return null;
+            function readChannel(analyser, dataArray) {
                 analyser.getByteFrequencyData(dataArray);
                 const len = dataArray.length;
                 const bassEnd = Math.floor(len * 0.1),
                     midEnd = Math.floor(len * 0.4);
-                let bass = 0,
-                    mid = 0,
-                    high = 0;
+                let bass = 0, mid = 0, high = 0;
                 for (let i = 0; i < bassEnd; i++) bass += dataArray[i];
                 for (let i = bassEnd; i < midEnd; i++) mid += dataArray[i];
                 for (let i = midEnd; i < len; i++) high += dataArray[i];
@@ -1139,11 +1143,22 @@
                 bass = Math.pow(bass, exp);
                 mid = Math.pow(mid, exp);
                 high = Math.pow(high, exp);
+                return { bass, mid, high, level: bass * 0.45 + mid * 0.2 + high * 0.35 };
+            }
+
+            function getRealMicData() {
+                if (!micActive || !analyserL) return null;
+                const L = readChannel(analyserL, dataArrayL);
+                const R = readChannel(analyserR, dataArrayR);
+                const sum = L.level + R.level;
                 return {
-                    level: bass * 0.45 + mid * 0.2 + high * 0.35,
-                    bass,
-                    mid,
-                    high,
+                    level: (L.level + R.level) / 2,
+                    bass:  (L.bass  + R.bass)  / 2,
+                    mid:   (L.mid   + R.mid)   / 2,
+                    high:  (L.high  + R.high)  / 2,
+                    balance: sum > 0.001 ? (R.level - L.level) / sum : 0,
+                    left: L,
+                    right: R,
                 };
             }
 
@@ -1258,11 +1273,14 @@
                         ctx.beginPath();
                         for (let x = 0; x <= W; x += 4) {
                             const nx = x / W;
+                            const ch = nx < 0.5
+                                ? (audio.left || audio)
+                                : (audio.right || audio);
                             const y =
                                 yBase +
                                 Math.sin(nx * 8 + t + band * 2) * (H * 0.08) +
                                 Math.sin(nx * 3 - t * 0.7 + band) * (H * 0.055) +
-                                audio.mid * (H * 0.13) * Math.sin(nx * 15 + t * 2);
+                                ch.mid * (H * 0.13) * Math.sin(nx * 15 + t * 2);
                             x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                         }
                         ctx.lineTo(W, H);
@@ -1328,8 +1346,9 @@
                 function checkBeat(audio, palette) {
                     const delta = audio.bass - lastBass;
                     if (delta > 0.08 && audio.bass > 0.15) {
+                        const bias = (audio.balance || 0) * W * 0.2;
                         bursts.push({
-                            x: W / 2 + (Math.random() - 0.5) * W * 0.55,
+                            x: W / 2 + bias + (Math.random() - 0.5) * W * 0.35,
                             y: H / 2 + (Math.random() - 0.5) * H * 0.45,
                             r: 0,
                             maxR: 100 + audio.bass * 200,
@@ -1347,9 +1366,10 @@
                     const delta = audio.high - lastHigh;
                     if (delta > 0.1 && audio.high > 0.12) {
                         const count = 1 + Math.floor(audio.high * 2);
+                        const bias = (audio.balance || 0) * W * 0.25;
                         for (let i = 0; i < count; i++) {
                             hibursts.push({
-                                x: Math.random() * W,
+                                x: W / 2 + bias + (Math.random() - 0.5) * W * 0.8,
                                 y: H * 0.1 + Math.random() * H * 0.8,
                                 r: 0,
                                 maxR: 25 + audio.high * 65,
@@ -1440,16 +1460,20 @@
                     ctx.fill();
 
                     drawWaveRing(cx, cy, H * 0.16, phase, audio, palette);
+                    const audioL = audio.left
+                        ? { ...audio, ...audio.left }
+                        : { ...audio, bass: audio.bass * 0.6, level: audio.level * 0.7 };
+                    const audioR = audio.right
+                        ? { ...audio, ...audio.right }
+                        : { ...audio, bass: audio.bass * 0.6, level: audio.level * 0.7 };
                     drawWaveRing(
-                        cx,
-                        cy,
-                        H * 0.26,
-                        phase,
-                        {
-                            ...audio,
-                            bass: audio.bass * 0.6,
-                            level: audio.level * 0.7,
-                        },
+                        cx - W * 0.1, cy, H * 0.22, phase,
+                        audioL,
+                        { ...palette, primary: palette.secondary },
+                    );
+                    drawWaveRing(
+                        cx + W * 0.1, cy, H * 0.22, phase,
+                        audioR,
                         { ...palette, primary: palette.secondary },
                     );
 
@@ -1863,6 +1887,11 @@
                         opt.textContent = d.label;
                         sel.appendChild(opt);
                     });
+                    // Auto-select BlackHole if present
+                    const bh = inputs.find((d) =>
+                        d.label.toLowerCase().includes("blackhole"),
+                    );
+                    if (bh) sel.value = bh.deviceId;
                 } catch (e) {
                     sel.innerHTML = `<option value="">Could not list devices: ${e.message}</option>`;
                 }
