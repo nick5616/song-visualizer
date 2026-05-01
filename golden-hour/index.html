@@ -1346,6 +1346,18 @@
                         g.addColorStop(1, rgb(col, 0));
                         ctx.fillStyle = g;
                         ctx.fill();
+                        // Horizontal blue→red tint, each side driven by its channel level
+                        const tint = ctx.createLinearGradient(0, 0, W, 0);
+                        const lv = audio.left  ? Math.min(audio.left.level  * 2, 1) : 0.5;
+                        const rv = audio.right ? Math.min(audio.right.level * 2, 1) : 0.5;
+                        const taL = 0.07 * intensity * lv;
+                        const taR = 0.07 * intensity * rv;
+                        tint.addColorStop(0,    `rgba(40,110,235,${taL})`);
+                        tint.addColorStop(0.38, `rgba(40,110,235,0)`);
+                        tint.addColorStop(0.62, `rgba(235,55,20,0)`);
+                        tint.addColorStop(1,    `rgba(235,55,20,${taR})`);
+                        ctx.fillStyle = tint;
+                        ctx.fill();
                         ctx.restore();
                     }
                 }
@@ -1510,16 +1522,24 @@
                     const audioR = audio.right
                         ? { ...audio, ...audio.right }
                         : { ...audio, bass: audio.bass * 0.6, level: audio.level * 0.7 };
-                    drawWaveRing(
-                        cx - W * 0.1, cy, H * 0.22, phase,
-                        audioL,
-                        { ...palette, primary: palette.secondary },
-                    );
-                    drawWaveRing(
-                        cx + W * 0.1, cy, H * 0.22, phase,
-                        audioR,
-                        { ...palette, primary: palette.secondary },
-                    );
+                    const lFactor = Math.min((audioL.level || 0) * 2, 1.0);
+                    const rFactor = Math.min((audioR.level || 0) * 2, 1.0);
+                    const blueShift = (c) => lerpColor(c, [40, 110, 235], lFactor * 0.75);
+                    const redShift  = (c) => lerpColor(c, [235, 55, 20],  rFactor * 0.75);
+                    const palL = {
+                        ...palette,
+                        primary:   blueShift(palette.secondary),
+                        secondary: blueShift(palette.secondary),
+                        glow:      blueShift(palette.glow),
+                    };
+                    const palR = {
+                        ...palette,
+                        primary:   redShift(palette.secondary),
+                        secondary: redShift(palette.secondary),
+                        glow:      redShift(palette.glow),
+                    };
+                    drawWaveRing(cx - W * 0.1, cy, H * 0.22, phase, audioL, palL);
+                    drawWaveRing(cx + W * 0.1, cy, H * 0.22, phase, audioR, palR);
 
                     particles.forEach((p) => {
                         p.update(audio);
