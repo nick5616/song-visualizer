@@ -224,7 +224,7 @@
                 text-align: center;
                 font-style: italic;
                 letter-spacing: 0.4em;
-                font-size: clamp(13px, 1.5vw, 18px);
+                font-size: clamp(20px, 2.5vw, 32px);
                 color: rgba(255, 200, 80, 0.45);
                 text-transform: uppercase;
                 transition: color 3s;
@@ -233,7 +233,7 @@
             #fs-time {
                 text-align: center;
                 font-family: "Bebas Neue", sans-serif;
-                font-size: clamp(48px, 7vw, 90px);
+                font-size: clamp(100px, 10vw, 140px);
                 letter-spacing: 0.15em;
                 color: transparent;
                 -webkit-text-stroke: 1px rgba(255, 200, 80, 0.35);
@@ -1192,7 +1192,7 @@
                 // Mic adds to overall energy (singing/clapping boosts visuals)
                 let micBoost = 0;
                 if (micActive && micAnalyser !== songAnalyserL) {
-                    micBoost = readChannel(micAnalyser, micDataArr, 1.5).level * 0.5;
+                    micBoost = readChannel(micAnalyser, micDataArr, 1.5).level * 1.5;
                 }
 
                 return {
@@ -1259,7 +1259,7 @@
                         const alpha =
                             this.life *
                             this.opacity *
-                            (0.05 + audio.level * 0.95);
+                            (0.15 + audio.level * 0.85);
                         if (this.type === "spark") {
                             ctx.save();
                             ctx.strokeStyle = rgb(palette.ember, alpha);
@@ -1342,7 +1342,7 @@
                             yBase + H * 0.12,
                         );
                         g.addColorStop(0, rgb(col, 0));
-                        g.addColorStop(0.5, rgb(col, 0.055 * intensity));
+                        g.addColorStop(0.5, rgb(col, 0.09 * intensity));
                         g.addColorStop(1, rgb(col, 0));
                         ctx.fillStyle = g;
                         ctx.fill();
@@ -1473,7 +1473,7 @@
                         silenceFrames = 0;
                     }
 
-                    ctx.fillStyle = rgb(palette.bg, 0.15);
+                    ctx.fillStyle = rgb(palette.bg, 0.2);
                     ctx.fillRect(0, 0, W, H);
 
                     drawAurora(phase, audio, palette);
@@ -1506,7 +1506,7 @@
                     );
                     cg.addColorStop(
                         0,
-                        rgb(palette.glow, 0.02 + audio.level * 0.55),
+                        rgb(palette.glow, 0.06 + audio.level * 0.55),
                     );
                     cg.addColorStop(0.4, rgb(palette.primary, 0.05));
                     cg.addColorStop(1, "transparent");
@@ -1554,7 +1554,7 @@
                         ctx.beginPath();
                         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
                         ctx.strokeStyle = rgb(b.color, b.alpha);
-                        ctx.lineWidth = 2;
+                        ctx.lineWidth = 3.5;
                         ctx.stroke();
                     });
 
@@ -1566,7 +1566,7 @@
                         ctx.beginPath();
                         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
                         ctx.strokeStyle = rgb(b.color, b.alpha);
-                        ctx.lineWidth = 0.8;
+                        ctx.lineWidth = 2;
                         ctx.stroke();
                     });
 
@@ -1641,14 +1641,33 @@
 
             function startFullscreen() {
                 const fsCanvas = document.getElementById("fs-canvas");
-                fsCanvas.width = window.innerWidth;
-                fsCanvas.height = window.innerHeight;
+
+                function fsCanvasSize() {
+                    const scale = Math.min(1, 1920 / window.innerWidth);
+                    return {
+                        w: Math.round(window.innerWidth * scale),
+                        h: Math.round(window.innerHeight * scale),
+                    };
+                }
+
+                const { w: initW, h: initH } = fsCanvasSize();
+                fsCanvas.width = initW;
+                fsCanvas.height = initH;
                 fsRenderer = makeRenderer(fsCanvas);
 
                 window.addEventListener("resize", () => {
-                    fsCanvas.width = window.innerWidth;
-                    fsCanvas.height = window.innerHeight;
-                    fsRenderer.resize(window.innerWidth, window.innerHeight);
+                    const { w, h } = fsCanvasSize();
+                    fsCanvas.width = w;
+                    fsCanvas.height = h;
+                    fsRenderer.resize(w, h);
+                });
+
+                document.addEventListener("keydown", (e) => {
+                    if (e.key === " " && fsRenderer) {
+                        e.preventDefault();
+                        const phase = getPhase(getCurrentMinutes());
+                        fsRenderer.forceBeat(getPalette(phase));
+                    }
                 });
 
                 function fsLoop() {
