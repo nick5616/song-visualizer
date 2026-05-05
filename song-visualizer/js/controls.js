@@ -128,7 +128,12 @@ function startRecording() {
   ]);
   recordedChunks = [];
   const mimeType = getBestMimeType();
-  mediaRecorder = new MediaRecorder(combined, mimeType ? { mimeType } : {});
+  const recorderOptions = {
+    videoBitsPerSecond: 16_000_000,
+    audioBitsPerSecond: 192_000,
+    ...(mimeType ? { mimeType } : {}),
+  };
+  mediaRecorder = new MediaRecorder(combined, recorderOptions);
   mediaRecorder.ondataavailable = e => {
     if (e.data.size > 0) recordedChunks.push(e.data);
   };
