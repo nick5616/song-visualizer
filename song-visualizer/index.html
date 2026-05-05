@@ -20,21 +20,31 @@
 
             <div class="section">
                 <div class="section-title">Mode</div>
-                <div class="mode-grid">
-                    <button class="mode-btn active" data-mode="waveform">
-                        Waveform
-                    </button>
-                    <button class="mode-btn" data-mode="geometry">
-                        Geometry
-                    </button>
+                <div class="mode-options">
+                    <label class="opt-label"><input type="checkbox" id="multiSelectCheck"> Multi</label>
+                    <label class="opt-label"><input type="checkbox" id="cycleCheck"> Cycle</label>
+                    <label class="opt-label"><input type="checkbox" id="beatSwitchCheck"> Beat switch</label>
+                </div>
+                <div class="cycle-row" id="cycleRow" style="display:none">
+                    every <input type="number" id="cycleInterval" value="8" min="1" max="120"> sec
+                </div>
+                <div class="mode-grid mode-scroll">
+                    <button class="mode-btn active" data-mode="waveform">Waveform</button>
+                    <button class="mode-btn" data-mode="geometry">Geometry</button>
                     <button class="mode-btn" data-mode="tunnel">Tunnel</button>
-                    <button class="mode-btn" data-mode="lissajous">
-                        Lissajous
-                    </button>
+                    <button class="mode-btn" data-mode="lissajous">Lissajous</button>
                     <button class="mode-btn" data-mode="bars">Spectrum</button>
-                    <button class="mode-btn" data-mode="particles">
-                        Particles
-                    </button>
+                    <button class="mode-btn" data-mode="particles">Particles</button>
+                    <button class="mode-btn" data-mode="radial">Radial</button>
+                    <button class="mode-btn" data-mode="helix">Helix</button>
+                    <button class="mode-btn" data-mode="starfield">Starfield</button>
+                    <button class="mode-btn" data-mode="terrain">Terrain</button>
+                    <button class="mode-btn" data-mode="aurora">Aurora</button>
+                    <button class="mode-btn" data-mode="kaleidoscope">Kaleido</button>
+                    <button class="mode-btn" data-mode="ripples">Ripples</button>
+                    <button class="mode-btn" data-mode="vortex">Vortex</button>
+                    <button class="mode-btn" data-mode="guitarhero">Guitar Hero</button>
+                    <button class="mode-btn" data-mode="ghreverse">GH Reverse</button>
                 </div>
             </div>
 

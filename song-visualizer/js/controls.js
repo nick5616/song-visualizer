@@ -1,13 +1,71 @@
-// ---- Mode buttons ----
+// ---- Mode management ----
+function updateModeBtnStyles() {
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    const m = btn.dataset.mode;
+    btn.classList.toggle('active', multiSelect ? selectedModes.includes(m) : m === mode);
+  });
+}
+
+function setMode(m) {
+  mode = m;
+  particles = [];
+  tunnelRings = [];
+  stars = [];
+  terrainRows = [];
+  ripples = [];
+  ghLiveNotes = [];
+  ghBandSmooth.fill(0);
+  ghLastLiveSpawn.fill(-999);
+  document.getElementById('modeLabel').textContent = m.toUpperCase();
+  updateModeBtnStyles();
+}
+
+function advanceCycleMode() {
+  if (selectedModes.length <= 1) return;
+  const next = (selectedModes.indexOf(mode) + 1) % selectedModes.length;
+  setMode(selectedModes[next]);
+}
+
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    mode = btn.dataset.mode;
-    particles = [];
-    tunnelRings = [];
-    document.getElementById('modeLabel').textContent = btn.textContent.toUpperCase();
+    const m = btn.dataset.mode;
+    if (multiSelect) {
+      const idx = selectedModes.indexOf(m);
+      if (idx === -1) {
+        selectedModes.push(m);
+        setMode(m);
+      } else if (selectedModes.length > 1) {
+        selectedModes.splice(idx, 1);
+        if (mode === m) setMode(selectedModes[0]);
+        else updateModeBtnStyles();
+      }
+    } else {
+      selectedModes = [m];
+      setMode(m);
+    }
   });
+});
+
+document.getElementById('multiSelectCheck').addEventListener('change', e => {
+  multiSelect = e.target.checked;
+  if (!multiSelect) selectedModes = [mode];
+  updateModeBtnStyles();
+});
+
+document.getElementById('cycleCheck').addEventListener('change', e => {
+  cycleEnabled = e.target.checked;
+  cycleFrameCount = 0;
+  document.getElementById('cycleRow').style.display = cycleEnabled ? 'flex' : 'none';
+});
+
+document.getElementById('beatSwitchCheck').addEventListener('change', e => {
+  beatSwitchEnabled = e.target.checked;
+  beatCooldownFrames = 0;
+});
+
+document.getElementById('cycleInterval').addEventListener('input', e => {
+  cycleInterval = Math.max(1, parseInt(e.target.value) || 8);
+  cycleFrameCount = 0;
 });
 
 // ---- Color swatches ----
@@ -127,6 +185,8 @@ function startRecording() {
     ...audioDestination.stream.getAudioTracks(),
   ]);
   recordedChunks = [];
+  const avDelay = (audioCtx.outputLatency || 0) + (audioCtx.baseLatency || 0);
+  audioSyncDelay.delayTime.value = avDelay;
   const mimeType = getBestMimeType();
   const recorderOptions = {
     videoBitsPerSecond: 16_000_000,
@@ -142,6 +202,7 @@ function startRecording() {
 }
 
 function stopRecording() {
+  if (audioSyncDelay) audioSyncDelay.delayTime.value = 0;
   if (!mediaRecorder || mediaRecorder.state === 'inactive') {
     isRecording = false;
     return;
@@ -183,7 +244,7 @@ function playFileAudio() {
   fileSource = audioCtx.createBufferSource();
   fileSource.buffer = audioBuffer;
   fileSource.connect(analyser);
-  fileSource.connect(audioDestination);
+  fileSource.connect(audioSyncDelay);
   fileSource.start(0, fileOffset);
   fileStartedAt = audioCtx.currentTime - fileOffset;
   fileAudioActive = true;
@@ -224,7 +285,10 @@ document.getElementById('mp3Input').addEventListener('change', async (e) => {
     nameEl.textContent = file.name.replace(/\.[^.]+$/, '');
     nameEl.className = 'track-name loaded';
     fileOffset = 0;
+    ghNotes = null;
+    ghLiveNotes = [];
     updateFileUI();
+    setTimeout(() => { ghNotes = analyzeTrack(audioBuffer); }, 50);
   } catch (err) {
     nameEl.textContent = 'error decoding file';
     audioBuffer = null;

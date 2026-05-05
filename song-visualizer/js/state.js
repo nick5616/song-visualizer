@@ -32,8 +32,23 @@ let fileStartedAt = 0;
 let filePlaying = false;
 
 let audioDestination = null;
+let audioSyncDelay = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
 let t = 0;
+
+let ghNotes = null;      // null = not yet analyzed, [] or [...] = analyzed
+let ghLiveNotes = [];
+let ghBandSmooth = new Float32Array(5).fill(0);
+let ghLastLiveSpawn = new Float32Array(5).fill(-999);
+
+let selectedModes = ['waveform'];
+let multiSelect = false;
+let cycleEnabled = false;
+let cycleInterval = 8;
+let beatSwitchEnabled = false;
+let cycleFrameCount = 0;
+let lastBassLevel = 0;
+let beatCooldownFrames = 0;

@@ -101,11 +101,73 @@ canvas {
   margin-bottom: 10px;
 }
 
+.mode-options {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.opt-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.opt-label input[type=checkbox] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 11px;
+  height: 11px;
+}
+
+.cycle-row {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+}
+
+.cycle-row input[type=number] {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  width: 40px;
+  text-align: center;
+  outline: none;
+}
+
 .mode-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+
+.mode-scroll {
+  max-height: 152px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.mode-scroll::-webkit-scrollbar { width: 4px; }
+.mode-scroll::-webkit-scrollbar-track { background: transparent; }
+.mode-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .mode-btn {
   padding: 9px 8px;
