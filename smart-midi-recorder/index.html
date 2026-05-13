@@ -314,6 +314,7 @@ function MidiMuse() {
   const [composerScrollX, setComposerScrollX] = useState(0);
   const [bracketDragState, setBracketDragState] = useState(null);
   const [isComposerPlaying, setIsComposerPlaying] = useState(false);
+  const [isProducerPlaying, setIsProducerPlaying] = useState(false);
 
   const recordStartRef = useRef(null);
   const activeNotesRef = useRef(new Map());
@@ -335,6 +336,8 @@ function MidiMuse() {
   const composerDurationRef = useRef(1);
   const composerPlayTimeoutsRef = useRef([]);
   const composerPlayStartRef = useRef(null);
+  const producerPlayTimeoutsRef = useRef([]);
+  const producerPlayStartRef = useRef(null);
 
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { viewRef.current = view; }, [view]);
@@ -516,7 +519,35 @@ function MidiMuse() {
     }
   }, []);
 
+  const stopProducerPlayback = useCallback(() => {
+    for (const id of producerPlayTimeoutsRef.current) clearTimeout(id);
+    producerPlayTimeoutsRef.current = [];
+    producerPlayStartRef.current = null;
+    synthRef.current?.releaseAll?.();
+    setIsProducerPlaying(false);
+  }, []);
+
+  const playProducerNotes = useCallback(() => {
+    stopProducerPlayback();
+    if (!synthRef.current || !window.Tone || notes.length === 0) return;
+    window.Tone.start();
+    producerPlayStartRef.current = { wallTime: performance.now() };
+    for (const n of notes) {
+      const freq = window.Tone.Frequency(n.pitch, "midi").toFrequency();
+      producerPlayTimeoutsRef.current.push(
+        setTimeout(() => synthRef.current?.triggerAttack(freq, undefined, n.velocity / 127), n.startTime * 1000),
+        setTimeout(() => synthRef.current?.triggerRelease(freq), n.endTime * 1000)
+      );
+    }
+    const endMs = Math.max(...notes.map(n => n.endTime)) * 1000;
+    producerPlayTimeoutsRef.current.push(
+      setTimeout(() => { producerPlayStartRef.current = null; setIsProducerPlaying(false); }, endMs + 150)
+    );
+    setIsProducerPlaying(true);
+  }, [notes, stopProducerPlayback]);
+
   const startRecording = () => {
+    stopProducerPlayback();
     recordStartRef.current = performance.now() / 1000;
     setNotes([]); setSelectedNoteId(null); setIsRecording(true); setAutoFollow(true); setScrollX(0);
   };
@@ -530,7 +561,7 @@ function MidiMuse() {
     if (held.length > 0) setNotes((prev) => [...prev, ...held]);
     setAutoFollow(false);
   };
-  const clearNotes = () => { setNotes([]); setSelectedNoteId(null); setScrollX(0); recordStartRef.current = null; };
+  const clearNotes = () => { stopProducerPlayback(); setNotes([]); setSelectedNoteId(null); setScrollX(0); recordStartRef.current = null; };
 
   const advanceCursor = useCallback((beats) => {
     const newCursor = composerCursorRef.current + beats;
@@ -677,6 +708,14 @@ function MidiMuse() {
     setScrollX(Math.max(0, playheadPx - viewportWidth * 0.7));
   }, [now, isRecording, autoFollow]);
 
+  useEffect(() => {
+    if (!isProducerPlaying || !producerPlayStartRef.current || !canvasRef.current) return;
+    const elapsed = (performance.now() - producerPlayStartRef.current.wallTime) / 1000;
+    const viewportWidth = canvasRef.current.clientWidth - PRODUCER_KEYBOARD_WIDTH;
+    const playheadPx = elapsed * ROLL_PX_PER_SEC;
+    setScrollX(Math.max(0, playheadPx - viewportWidth * 0.7));
+  }, [now, isProducerPlaying]);
+
   const hitTestNote = (xPx, yPx, canvasWidth, canvasHeight) => {
     if (xPx < PRODUCER_KEYBOARD_WIDTH) return null;
     const rowHeight = canvasHeight / PITCH_RANGE;
@@ -781,6 +820,16 @@ function MidiMuse() {
       const playheadX = rollAreaX + (liveOffset - visibleStartSec) * ROLL_PX_PER_SEC;
       if (playheadX >= rollAreaX) { ctx.strokeStyle = "#ff4d5e"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(playheadX, 0); ctx.lineTo(playheadX, cssH); ctx.stroke(); }
     }
+    if (isProducerPlaying && producerPlayStartRef.current) {
+      const elapsed = (performance.now() - producerPlayStartRef.current.wallTime) / 1000;
+      const playheadX = rollAreaX + (elapsed - visibleStartSec) * ROLL_PX_PER_SEC;
+      if (playheadX >= rollAreaX && playheadX <= cssW) {
+        ctx.strokeStyle = "#6ee86e"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(playheadX, 0); ctx.lineTo(playheadX, cssH); ctx.stroke();
+        ctx.fillStyle = "#6ee86e";
+        ctx.beginPath(); ctx.moveTo(playheadX - 5, 0); ctx.lineTo(playheadX + 5, 0); ctx.lineTo(playheadX, 8); ctx.fill();
+      }
+    }
     for (let p = KEYBOARD_START; p < KEYBOARD_END; p++) {
       const y = cssH - (p - KEYBOARD_START + 1) * rowHeight;
       const isActive = activeNotes.has(p);
@@ -825,7 +874,7 @@ function MidiMuse() {
       const nc = context.nextChords[0];
       drawChordBracketVertical({ pcs: nc.pcs }, PRODUCER_KEYBOARD_WIDTH, PRODUCER_KEYBOARD_WIDTH + 44, ROLE_COLORS.leading.glow, buildChordSymbol(nc.rootPc, nc.quality));
     }
-  }, [view, notes, activeNotes, now, bpm, isRecording, context, scrollX, selectedNoteId]);
+  }, [view, notes, activeNotes, now, bpm, isRecording, isProducerPlaying, context, scrollX, selectedNoteId]);
 
   useEffect(() => {
     if (view !== "improv" || !improvCanvasRef.current) return;
@@ -1229,6 +1278,9 @@ function MidiMuse() {
           {!isRecording
             ? <button onClick={startRecording} style={{ ...ctrlStyle, background:"#5a1a20", color:"#ff8a95", cursor:"pointer" }}>● REC</button>
             : <button onClick={stopRecording} style={{ ...ctrlStyle, background:"#ff4d5e", color:"#fff", cursor:"pointer" }}>■ STOP</button>}
+          {notes.length > 0 && (!isProducerPlaying
+            ? <button onClick={playProducerNotes} style={{ ...ctrlStyle, background:"#1a3a1a", color:"#6ee86e", cursor:"pointer" }}>▶ PLAY</button>
+            : <button onClick={stopProducerPlayback} style={{ ...ctrlStyle, background:"#3a1a1a", color:"#ff8a8a", cursor:"pointer" }}>■ STOP</button>)}
           <button onClick={exportMidi} style={{ ...ctrlStyle, cursor:"pointer" }}>⬇ MIDI</button>
           <button onClick={clearNotes} style={{ ...ctrlStyle, cursor:"pointer" }}>CLEAR</button>
         </div>
