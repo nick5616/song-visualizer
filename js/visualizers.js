@@ -22,13 +22,13 @@ function rndColor() {
 }
 
 // ---- Particles ----
-const MAX_PARTICLES = 600;
+const MAX_PARTICLES = 300;
 let particles = [];
 
 function spawnParticle(b) {
   const spd = params.speed / 50;
-  const dens = params.density / 40;
-  const count = Math.floor((b.bass * 5 + b.mid * 4 + b.high * 3) * dens + 1);
+  const dens = params.density / 60;
+  const count = Math.floor((b.bass * 4 + b.mid * 3 + b.high * 2) * dens + 1);
   for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
     const angle = Math.random() * Math.PI * 2;
     const vel = (0.5 + b.bass * 3 + b.mid * 1.5 + Math.random() * 2) * spd;
@@ -49,40 +49,57 @@ function spawnParticle(b) {
 function drawParticles(b) {
   spawnParticle(b);
   const glow = params.glow / 100;
-  ctx.save();
-  if (glow > 0.3) ctx.shadowBlur = glow * 20;
+  const trailMax = Math.floor(3 + b.high * 5);
+
+  // Update all particles first
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.trail.push({ x: p.x, y: p.y });
-    const trailMax = Math.floor(4 + b.high * 10);
     if (p.trail.length > trailMax) p.trail.shift();
     p.x += p.vx * (1 + b.bass * 1.5 + b.mid * 0.8);
     p.y += p.vy * (1 + b.bass * 1.5 + b.mid * 0.8);
     p.vx *= 0.98;
     p.vy *= 0.98;
     p.life -= p.decay;
-    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    if (p.life <= 0) { particles.splice(i, 1); }
+  }
 
-    if (p.trail.length > 1) {
+  ctx.save();
+  if (glow > 0.3) ctx.shadowBlur = glow * 15;
+
+  // Batch draw trails by color (one path per color instead of one per segment)
+  const byColor = {};
+  for (const p of particles) {
+    if (!byColor[p.color]) byColor[p.color] = [];
+    byColor[p.color].push(p);
+  }
+
+  ctx.lineWidth = 1;
+  for (const [color, ps] of Object.entries(byColor)) {
+    ctx.strokeStyle = color + '66';
+    ctx.shadowColor = color;
+    ctx.beginPath();
+    for (const p of ps) {
       for (let j = 1; j < p.trail.length; j++) {
-        const alpha = (j / p.trail.length) * p.life * 0.5;
-        ctx.strokeStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
-        ctx.lineWidth = p.size * (j / p.trail.length) * 0.5;
-        ctx.shadowColor = p.color;
-        ctx.beginPath();
         ctx.moveTo(p.trail[j - 1].x, p.trail[j - 1].y);
         ctx.lineTo(p.trail[j].x, p.trail[j].y);
-        ctx.stroke();
       }
     }
+    ctx.stroke();
+  }
 
-    const alpha = Math.floor(p.life * 255).toString(16).padStart(2, '0');
-    ctx.fillStyle = p.color + alpha;
-    ctx.shadowColor = p.color;
+  // Batch draw particle heads by color
+  for (const [color, ps] of Object.entries(byColor)) {
+    ctx.fillStyle = color + 'cc';
+    ctx.shadowColor = color;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    for (const p of ps) {
+      ctx.moveTo(p.x + p.size * p.life, p.y);
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    }
     ctx.fill();
   }
+
   ctx.restore();
 }
 
