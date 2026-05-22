@@ -667,8 +667,9 @@ function drawGuitarHero(b) {
   const laneW  = y => roadW(y) / GH_LANES;
   const noteX  = (y, lane) => roadL(y) + lane * laneW(y);
   const yOfProg = prog => horizonY + prog * (fretY - horizonY);
-  // prog 0 = horizon (future), prog 1 = fret (now)
-  const progOfTime = dt => 1 - dt / GH_LOOKAHEAD;
+  // Hyperbolic depth mapping: matches perspective road geometry so notes
+  // accelerate toward the fret instead of warping with constant screen velocity.
+  const progOfTime = dt => dt <= 0 ? 1.0 : 1.0 / (1.0 + dt * 3.0);
 
   // ---- Highway background ----
   ctx.save();
@@ -780,65 +781,58 @@ function drawGuitarHero(b) {
 
   // ---- Draw notes ----
   const h2x = n => Math.floor(n * 255).toString(16).padStart(2, '0');
+  const refTime = ghNotes ? now : t / 60;
 
   for (const note of toRender) {
-    const refTime = ghNotes ? now : t / 60;
     const dt = note.time - refTime;
-    const dur = GH_NOTE_DUR * (note.big ? 2.2 : 1);
-    const progTop = progOfTime(dt + dur);
-    const progBot = progOfTime(dt);
+    const prog = progOfTime(dt);
+    if (prog < 0 || prog > 1.02) continue;
 
-    if (progBot < -0.05 || progTop > 1.05) continue;
-
-    const yT = yOfProg(Math.max(-0.05, Math.min(1, progTop)));
-    const yB = yOfProg(Math.max(0, Math.min(1.05, progBot)));
-    if (yB - yT < 2) continue;
-
-    const yMid = (yT + yB) / 2;
-    const nX = noteX(yMid, note.lane);
-    const nW = laneW(yMid) * 0.82;
+    const y = yOfProg(Math.min(1, prog));
+    const nX = noteX(y, note.lane);
+    const nW = laneW(y) * 0.82;
+    const chipH = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
+    const yT = y - chipH / 2;
+    const yB = y + chipH / 2;
     const color = p[note.lane % p.length];
-    const alpha = (0.55 + note.intensity * 0.45) * int;
-    const r = Math.min(nW * 0.22, (yB - yT) * 0.35, 7);
+    const alpha = (0.65 + note.intensity * 0.35) * int;
+    const r = Math.min(nW * 0.22, chipH * 0.45, 8);
 
     ctx.save();
-    ctx.shadowBlur = params.glow * 0.55;
+    ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
     ctx.shadowColor = color;
 
     const ng = ctx.createLinearGradient(nX, yT, nX, yB);
-    ng.addColorStop(0,   color + h2x(alpha * 0.45));
-    ng.addColorStop(0.25, color + h2x(alpha));
-    ng.addColorStop(0.75, color + h2x(alpha));
-    ng.addColorStop(1,   color + h2x(alpha * 0.45));
+    ng.addColorStop(0,   color + h2x(alpha * 0.6));
+    ng.addColorStop(0.5, color + h2x(alpha));
+    ng.addColorStop(1,   color + h2x(alpha * 0.6));
     ctx.fillStyle = ng;
 
     ctx.beginPath();
     ctx.moveTo(nX + r, yT);
     ctx.lineTo(nX + nW - r, yT);
-    ctx.arcTo(nX + nW, yT,  nX + nW, yT + r, r);
+    ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
     ctx.lineTo(nX + nW, yB - r);
-    ctx.arcTo(nX + nW, yB,  nX + nW - r, yB, r);
+    ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
     ctx.lineTo(nX + r, yB);
-    ctx.arcTo(nX, yB,  nX, yB - r, r);
+    ctx.arcTo(nX, yB, nX, yB - r, r);
     ctx.lineTo(nX, yT + r);
-    ctx.arcTo(nX, yT,  nX + r, yT, r);
+    ctx.arcTo(nX, yT, nX + r, yT, r);
     ctx.closePath();
     ctx.fill();
 
-    // Top highlight stripe
-    ctx.fillStyle = '#ffffff' + h2x(0.18 + note.intensity * 0.15);
-    ctx.fillRect(nX + r, yT, nW - r * 2, Math.min(3, (yB - yT) * 0.15));
+    ctx.fillStyle = '#ffffff' + h2x(0.25 + note.intensity * 0.2);
+    ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
     ctx.restore();
   }
 
   // ---- Fret buttons ----
-  const fretBtnY = H * 0.875;
+  const fretBtnY = fretY;
   const fretBtnR = laneW(fretY) * 0.36;
 
   for (let lane = 0; lane < GH_LANES; lane++) {
     const bx = noteX(fretY, lane) + laneW(fretY) * 0.5;
     const color = p[lane % p.length];
-    const refTime = ghNotes ? now : t / 60;
 
     // How close is the nearest note to the fret line?
     let hit = 0;
@@ -935,8 +929,8 @@ function drawGuitarHeroReverse(b) {
   const laneW  = y => roadW(y) / GH_LANES;
   const noteX  = (y, lane) => roadL(y) + lane * laneW(y);
   const yOfProg = prog => horizonY + prog * (fretY - horizonY);
-  // prog 0 = horizon (oldest visible past), prog 1 = fret (just happened)
-  const progOfPast = dt_past => 1 - dt_past / GH_LOOKBACK;
+  // Hyperbolic depth mapping matching the perspective road geometry.
+  const progOfPast = dt_past => dt_past <= 0 ? 1.0 : 1.0 / (1.0 + dt_past * 2.44);
 
   // Highway background
   ctx.save();
@@ -1040,54 +1034,49 @@ function drawGuitarHeroReverse(b) {
 
   for (const note of toRender) {
     const dt_past = refTime - note.time;
-    const dur = GH_NOTE_DUR * (note.big ? 2.2 : 1);
-    const progTop = progOfPast(dt_past);
-    const progBot = progOfPast(dt_past - dur);
+    const prog = progOfPast(dt_past);
+    if (prog < 0 || prog > 1.02) continue;
 
-    if (progTop < -0.05 || progBot > 1.05) continue;
-
-    const yT = yOfProg(Math.max(-0.05, Math.min(1, progTop)));
-    const yB = yOfProg(Math.max(0, Math.min(1.05, progBot)));
-    if (yB - yT < 2) continue;
-
-    const yMid = (yT + yB) / 2;
-    const nX = noteX(yMid, note.lane);
-    const nW = laneW(yMid) * 0.82;
+    const y = yOfProg(Math.min(1, prog));
+    const nX = noteX(y, note.lane);
+    const nW = laneW(y) * 0.82;
+    const chipH = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
+    const yT = y - chipH / 2;
+    const yB = y + chipH / 2;
     const color = p[note.lane % p.length];
-    const alpha = (0.55 + note.intensity * 0.45) * int;
-    const r = Math.min(nW * 0.22, (yB - yT) * 0.35, 7);
+    const alpha = (0.65 + note.intensity * 0.35) * int;
+    const r = Math.min(nW * 0.22, chipH * 0.45, 8);
 
     ctx.save();
-    ctx.shadowBlur = params.glow * 0.55;
+    ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
     ctx.shadowColor = color;
 
     const ng = ctx.createLinearGradient(nX, yT, nX, yB);
-    ng.addColorStop(0,    color + h2x(alpha * 0.45));
-    ng.addColorStop(0.25, color + h2x(alpha));
-    ng.addColorStop(0.75, color + h2x(alpha));
-    ng.addColorStop(1,    color + h2x(alpha * 0.45));
+    ng.addColorStop(0,   color + h2x(alpha * 0.6));
+    ng.addColorStop(0.5, color + h2x(alpha));
+    ng.addColorStop(1,   color + h2x(alpha * 0.6));
     ctx.fillStyle = ng;
 
     ctx.beginPath();
     ctx.moveTo(nX + r, yT);
     ctx.lineTo(nX + nW - r, yT);
-    ctx.arcTo(nX + nW, yT,  nX + nW, yT + r, r);
+    ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
     ctx.lineTo(nX + nW, yB - r);
-    ctx.arcTo(nX + nW, yB,  nX + nW - r, yB, r);
+    ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
     ctx.lineTo(nX + r, yB);
-    ctx.arcTo(nX, yB,  nX, yB - r, r);
+    ctx.arcTo(nX, yB, nX, yB - r, r);
     ctx.lineTo(nX, yT + r);
-    ctx.arcTo(nX, yT,  nX + r, yT, r);
+    ctx.arcTo(nX, yT, nX + r, yT, r);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#ffffff' + h2x(0.18 + note.intensity * 0.15);
-    ctx.fillRect(nX + r, yT, nW - r * 2, Math.min(3, (yB - yT) * 0.15));
+    ctx.fillStyle = '#ffffff' + h2x(0.25 + note.intensity * 0.2);
+    ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
     ctx.restore();
   }
 
   // ---- Fret buttons ----
-  const fretBtnY = H * 0.875;
+  const fretBtnY = fretY;
   const fretBtnR = laneW(fretY) * 0.36;
   const BAND_BINS2 = [[0, 8], [8, 20], [20, 50], [50, 90], [90, 128]];
 
