@@ -639,6 +639,7 @@ function drawRipples(b) {
 
 // ---- Guitar Hero ----
 const GH_LANES = 5;
+let ghLastAnySpawn = -999;
 const GH_LOOKAHEAD = 2.6;   // seconds of future visible
 const GH_LOOKBACK  = 3.2;   // seconds of past visible (reverse mode)
 const GH_NOTE_DUR  = 0.18;  // note block height in seconds
@@ -753,16 +754,18 @@ function drawGuitarHero(b) {
     for (let bi = 0; bi < GH_LANES; bi++) {
       const [blo, bhi] = BAND_BINS[bi];
       const energy = avg(freqSmooth, blo, bhi) / 255;
-      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.15);
-      const thresh = Math.max(0.18, ghBandSmooth[bi] * 1.35);
-      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.13) {
+      // Slow smoothing keeps baseline stable so only true spikes break through
+      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
+      const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.50 && liveNow - ghLastAnySpawn > 0.18) {
         ghLiveNotes.push({
           time: liveNow + GH_LOOKAHEAD,
           lane: bi,
-          intensity: Math.min(1, (energy - thresh) / 0.5),
-          big: energy > thresh * 1.5,
+          intensity: Math.min(1, (energy - thresh) / 0.4),
+          big: energy > thresh * 1.6,
         });
         ghLastLiveSpawn[bi] = liveNow;
+        ghLastAnySpawn = liveNow;
       }
     }
     // Prune old live notes
@@ -1012,16 +1015,17 @@ function drawGuitarHeroReverse(b) {
     for (let bi = 0; bi < GH_LANES; bi++) {
       const [blo, bhi] = BAND_BINS[bi];
       const energy = avg(freqSmooth, blo, bhi) / 255;
-      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.15);
-      const thresh = Math.max(0.18, ghBandSmooth[bi] * 1.35);
-      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.13) {
+      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
+      const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.50 && liveNow - ghLastAnySpawn > 0.18) {
         ghLiveNotes.push({
           time: liveNow,
           lane: bi,
-          intensity: Math.min(1, (energy - thresh) / 0.5),
-          big: energy > thresh * 1.5,
+          intensity: Math.min(1, (energy - thresh) / 0.4),
+          big: energy > thresh * 1.6,
         });
         ghLastLiveSpawn[bi] = liveNow;
+        ghLastAnySpawn = liveNow;
       }
     }
     const cutoff = liveNow - GH_LOOKBACK - GH_NOTE_DUR;
