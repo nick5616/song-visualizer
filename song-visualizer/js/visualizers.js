@@ -1,24 +1,42 @@
 // Helpers
-function lerp(a, b, t) { return a + (b - a) * t; }
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
 function avg(arr, s, e) {
-  let sum = 0;
-  for (let i = s; i < e; i++) sum += arr[i];
-  return sum / (e - s);
+    let sum = 0;
+    for (let i = s; i < e; i++) sum += arr[i];
+    return sum / (e - s);
 }
 
 const palettes = {
-  cyber:  ['#00ffaa', '#00ccff', '#ff2d6e', '#ff77aa'],
-  fire:   ['#ff6b00', '#ffdd00', '#ff3300', '#ff9900'],
-  ice:    ['#00c8ff', '#a64dff', '#ffffff', '#4dffd0'],
-  mono:   ['#ffffff', '#cccccc', '#888888', '#444444'],
-  sunset: ['#ff6ec7', '#ffb347', '#ff8c00', '#e040fb'],
-  matrix: ['#00ff41', '#00cc33', '#88ff88', '#003300'],
+    cyber:     ["#00ffaa", "#00ccff", "#ff2d6e", "#ff77aa"],
+    fire:      ["#ff6b00", "#ffdd00", "#ff3300", "#ff9900"],
+    ice:       ["#00c8ff", "#a64dff", "#ffffff", "#4dffd0"],
+    mono:      ["#ffffff", "#cccccc", "#888888", "#444444"],
+    sunset:    ["#ff6ec7", "#ffb347", "#ff8c00", "#e040fb"],
+    matrix:    ["#00ff41", "#00cc33", "#88ff88", "#003300"],
+    neon:      ["#ff00ff", "#00ffff", "#ffff00", "#ff0080"],
+    galaxy:    ["#6a0dad", "#1a1aff", "#00bfff", "#cc88ff"],
+    lava:      ["#ff1a00", "#ff4400", "#ff8800", "#ffcc00"],
+    ocean:     ["#006994", "#00b4d8", "#0077b6", "#48cae4"],
+    toxic:     ["#39ff14", "#ccff00", "#ff6600", "#aaff00"],
+    vaporwave: ["#ff71ce", "#01cdfe", "#05ffa1", "#b967ff"],
+    rose:      ["#ff0055", "#ff6b9d", "#ff99c8", "#c71585"],
+    plasma:    ["#9b5de5", "#f15bb5", "#fee440", "#00bbf9"],
+    gold:      ["#ffd700", "#ffaa00", "#ff8c00", "#ffe066"],
+    arctic:    ["#e0f7ff", "#a8d8ea", "#4fc3f7", "#0288d1"],
+    candy:     ["#ff6b8a", "#ffd166", "#06d6a0", "#118ab2"],
+    blood:     ["#8b0000", "#cc0000", "#ff2222", "#ff8888"],
+    forest:    ["#1a6b1a", "#4caf50", "#8bc34a", "#cddc39"],
+    synthwave: ["#ff2975", "#f222ff", "#8c1eff", "#00ffdd"],
 };
 
-function getPalette() { return palettes[palette]; }
+function getPalette() {
+    return palettes[palette];
+}
 function rndColor() {
-  const p = getPalette();
-  return p[Math.floor(Math.random() * p.length)];
+    const p = getPalette();
+    return p[Math.floor(Math.random() * p.length)];
 }
 
 // ---- Particles ----
@@ -26,398 +44,469 @@ const MAX_PARTICLES = 300;
 let particles = [];
 
 function spawnParticle(b) {
-  const spd = params.speed / 50;
-  const dens = params.density / 60;
-  const count = Math.floor((b.bass * 4 + b.mid * 3 + b.high * 2) * dens + 1);
-  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const vel = (0.5 + b.bass * 3 + b.mid * 1.5 + Math.random() * 2) * spd;
-    particles.push({
-      x: W / 2 + (Math.random() - 0.5) * W * 0.3,
-      y: H / 2 + (Math.random() - 0.5) * H * 0.3,
-      vx: Math.cos(angle) * vel,
-      vy: Math.sin(angle) * vel,
-      life: 1,
-      decay: 0.008 + Math.random() * 0.015,
-      size: 1.5 + b.bass * 5 + b.mid * 3 + Math.random() * 3,
-      color: rndColor(),
-      trail: [],
-    });
-  }
+    const spd = params.speed / 50;
+    const dens = params.density / 60;
+    const count = Math.floor((b.bass * 4 + b.mid * 3 + b.high * 2) * dens + 1);
+    for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const vel = (0.5 + b.bass * 3 + b.mid * 1.5 + Math.random() * 2) * spd;
+        particles.push({
+            x: W / 2 + (Math.random() - 0.5) * W * 0.3,
+            y: H / 2 + (Math.random() - 0.5) * H * 0.3,
+            vx: Math.cos(angle) * vel,
+            vy: Math.sin(angle) * vel,
+            life: 1,
+            decay: 0.008 + Math.random() * 0.015,
+            size: 1.5 + b.bass * 5 + b.mid * 3 + Math.random() * 3,
+            color: rndColor(),
+            trail: [],
+        });
+    }
 }
 
 function drawParticles(b) {
-  spawnParticle(b);
-  const glow = params.glow / 100;
-  const trailMax = Math.floor(3 + b.high * 5);
+    spawnParticle(b);
+    const glow = params.glow / 100;
+    const trailMax = Math.floor(3 + b.high * 5);
 
-  // Update all particles first
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.trail.push({ x: p.x, y: p.y });
-    if (p.trail.length > trailMax) p.trail.shift();
-    p.x += p.vx * (1 + b.bass * 1.5 + b.mid * 0.8);
-    p.y += p.vy * (1 + b.bass * 1.5 + b.mid * 0.8);
-    p.vx *= 0.98;
-    p.vy *= 0.98;
-    p.life -= p.decay;
-    if (p.life <= 0) { particles.splice(i, 1); }
-  }
-
-  ctx.save();
-  if (glow > 0.3) ctx.shadowBlur = glow * 15;
-
-  // Batch draw trails by color (one path per color instead of one per segment)
-  const byColor = {};
-  for (const p of particles) {
-    if (!byColor[p.color]) byColor[p.color] = [];
-    byColor[p.color].push(p);
-  }
-
-  ctx.lineWidth = 1;
-  for (const [color, ps] of Object.entries(byColor)) {
-    ctx.strokeStyle = color + '66';
-    ctx.shadowColor = color;
-    ctx.beginPath();
-    for (const p of ps) {
-      for (let j = 1; j < p.trail.length; j++) {
-        ctx.moveTo(p.trail[j - 1].x, p.trail[j - 1].y);
-        ctx.lineTo(p.trail[j].x, p.trail[j].y);
-      }
+    // Update all particles first
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > trailMax) p.trail.shift();
+        p.x += p.vx * (1 + b.bass * 1.5 + b.mid * 0.8);
+        p.y += p.vy * (1 + b.bass * 1.5 + b.mid * 0.8);
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.life -= p.decay;
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
     }
-    ctx.stroke();
-  }
 
-  // Batch draw particle heads by color
-  for (const [color, ps] of Object.entries(byColor)) {
-    ctx.fillStyle = color + 'cc';
-    ctx.shadowColor = color;
-    ctx.beginPath();
-    for (const p of ps) {
-      ctx.moveTo(p.x + p.size * p.life, p.y);
-      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.save();
+    if (glow > 0.3) ctx.shadowBlur = glow * 15;
+
+    // Batch draw trails by color (one path per color instead of one per segment)
+    const byColor = {};
+    for (const p of particles) {
+        if (!byColor[p.color]) byColor[p.color] = [];
+        byColor[p.color].push(p);
     }
-    ctx.fill();
-  }
 
-  ctx.restore();
+    ctx.lineWidth = 1;
+    for (const [color, ps] of Object.entries(byColor)) {
+        ctx.strokeStyle = color + "66";
+        ctx.shadowColor = color;
+        ctx.beginPath();
+        for (const p of ps) {
+            for (let j = 1; j < p.trail.length; j++) {
+                ctx.moveTo(p.trail[j - 1].x, p.trail[j - 1].y);
+                ctx.lineTo(p.trail[j].x, p.trail[j].y);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // Batch draw particle heads by color
+    for (const [color, ps] of Object.entries(byColor)) {
+        ctx.fillStyle = color + "cc";
+        ctx.shadowColor = color;
+        ctx.beginPath();
+        for (const p of ps) {
+            ctx.moveTo(p.x + p.size * p.life, p.y);
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+        }
+        ctx.fill();
+    }
+
+    ctx.restore();
 }
 
 // ---- Waveform ----
 function drawWaveform(b) {
-  const p = getPalette();
-  const cols = [p[0], p[1], p[2]];
-  const offsets = [0, 20 + b.mid * 90, -(20 + b.high * 70)];
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
+    const p = getPalette();
+    const cols = [p[0], p[1], p[2]];
+    const offsets = [0, 20 + b.mid * 90, -(20 + b.high * 70)];
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
 
-  for (let c = 0; c < cols.length; c++) {
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.4;
-    ctx.shadowColor = cols[c];
-    ctx.strokeStyle = cols[c] + (c === 0 ? 'ff' : '99');
-    ctx.lineWidth = c === 0 ? 3 : 1.5;
-    ctx.beginPath();
-    for (let x = 0; x < W; x++) {
-      const i = Math.floor((x / W) * 128);
-      const amp = (freqSmooth[i] / 255) * H * 0.35 * int;
-      const wave = Math.sin(x * 0.01 + t * spd * 2 + c * 1.2) * amp;
-      const wave2 = Math.sin(x * 0.007 + t * spd * 1.5 + c) * amp * 0.5;
-      const y = H / 2 + offsets[c] + wave + wave2;
-      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    for (let c = 0; c < cols.length; c++) {
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowColor = cols[c];
+        ctx.strokeStyle = cols[c] + (c === 0 ? "ff" : "99");
+        ctx.lineWidth = c === 0 ? 3 : 1.5;
+        ctx.beginPath();
+        for (let x = 0; x < W; x++) {
+            const i = Math.floor((x / W) * 128);
+            const amp = (freqSmooth[i] / 255) * H * 0.35 * int;
+            const wave = Math.sin(x * 0.01 + t * spd * 2 + c * 1.2) * amp;
+            const wave2 = Math.sin(x * 0.007 + t * spd * 1.5 + c) * amp * 0.5;
+            const y = H / 2 + offsets[c] + wave + wave2;
+            x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 }
 
 // ---- Geometry ----
 let geoAngle = 0;
 function drawGeometry(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const spd = params.speed / 50;
-  geoAngle += 0.005 * spd * (1 + b.bass * 2 + b.mid * 1.5);
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const spd = params.speed / 50;
+    geoAngle += 0.005 * spd * (1 + b.bass * 2 + b.mid * 1.5);
 
-  const shapes = Math.floor(3 + params.density / 20);
-  const cx = W / 2, cy = H / 2;
+    const shapes = Math.floor(3 + params.density / 20);
+    const cx = W / 2,
+        cy = H / 2;
 
-  for (let s = 0; s < shapes; s++) {
-    const phase = (s / shapes) * Math.PI * 2 + geoAngle;
-    const radius = (80 + s * 60 + b.bass * 200) * int;
-    const sides = 3 + s;
-    const color = p[s % p.length];
-    const alpha = 0.6 - s * 0.08;
+    for (let s = 0; s < shapes; s++) {
+        const phase = (s / shapes) * Math.PI * 2 + geoAngle;
+        const radius = (80 + s * 60 + b.bass * 200) * int;
+        const sides = 3 + s;
+        const color = p[s % p.length];
+        const alpha = 0.6 - s * 0.08;
 
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.5;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = 1.5 + b.bass * 3 + b.mid * 1.5;
-    ctx.beginPath();
-    for (let v = 0; v <= sides; v++) {
-      const a = (v / sides) * Math.PI * 2 + phase;
-      const perturbAmp = 0.06 + b.mid * 0.1 + b.high * 0.22;
-      const r = radius * (1 + Math.sin(a * 3 + t * 0.05) * perturbAmp);
-      const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r;
-      v === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.5;
+        ctx.shadowColor = color;
+        ctx.strokeStyle =
+            color +
+            Math.floor(alpha * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = 1.5 + b.bass * 3 + b.mid * 1.5;
+        ctx.beginPath();
+        for (let v = 0; v <= sides; v++) {
+            const a = (v / sides) * Math.PI * 2 + phase;
+            const perturbAmp = 0.06 + b.mid * 0.1 + b.high * 0.22;
+            const r = radius * (1 + Math.sin(a * 3 + t * 0.05) * perturbAmp);
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            v === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 
-  if (b.bass > 0.4 || b.mid > 0.5) {
-    const rays = 12;
-    ctx.save();
-    ctx.globalAlpha = b.bass * 0.5;
-    ctx.strokeStyle = p[0];
-    ctx.shadowColor = p[0];
-    ctx.shadowBlur = 20;
-    ctx.lineWidth = 1;
-    for (let i = 0; i < rays; i++) {
-      const a = (i / rays) * Math.PI * 2 + geoAngle;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(a) * W * 0.7, cy + Math.sin(a) * H * 0.7);
-      ctx.stroke();
+    if (b.bass > 0.4 || b.mid > 0.5) {
+        const rays = 12;
+        ctx.save();
+        ctx.globalAlpha = b.bass * 0.5;
+        ctx.strokeStyle = p[0];
+        ctx.shadowColor = p[0];
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < rays; i++) {
+            const a = (i / rays) * Math.PI * 2 + geoAngle;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(a) * W * 0.7, cy + Math.sin(a) * H * 0.7);
+            ctx.stroke();
+        }
+        ctx.restore();
     }
-    ctx.restore();
-  }
 }
 
 // ---- Tunnel ----
 let tunnelRings = [];
 function drawTunnel(b) {
-  const p = getPalette();
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
-  const cx = W / 2, cy = H / 2;
+    const p = getPalette();
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
+    const cx = W / 2,
+        cy = H / 2;
 
-  if (t % Math.max(1, Math.floor(10 / spd)) === 0 || b.bass > 0.5 || b.high > 0.55) {
-    tunnelRings.push({ r: 0, color: p[Math.floor(t / 10) % p.length], alpha: 1 });
-  }
+    if (
+        t % Math.max(1, Math.floor(10 / spd)) === 0 ||
+        b.bass > 0.5 ||
+        b.high > 0.55
+    ) {
+        tunnelRings.push({
+            r: 0,
+            color: p[Math.floor(t / 10) % p.length],
+            alpha: 1,
+        });
+    }
 
-  tunnelRings.forEach((ring, i) => {
-    ring.r += (2 + b.bass * 5 + b.mid * 3 + b.high * 1.5) * spd;
-    ring.alpha = 1 - ring.r / (W * 0.8);
-    if (ring.alpha <= 0) { tunnelRings.splice(i, 1); return; }
+    tunnelRings.forEach((ring, i) => {
+        ring.r += (2 + b.bass * 5 + b.mid * 3 + b.high * 1.5) * spd;
+        ring.alpha = 1 - ring.r / (W * 0.8);
+        if (ring.alpha <= 0) {
+            tunnelRings.splice(i, 1);
+            return;
+        }
 
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.4;
-    ctx.shadowColor = ring.color;
-    ctx.strokeStyle = ring.color + Math.floor(ring.alpha * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = 1.5 + b.bass * 4 + b.mid * 2;
-    const squish = 0.6 + b.mid * 0.3 + b.high * 0.15;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, ring.r * int, ring.r * int * squish, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  });
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowColor = ring.color;
+        ctx.strokeStyle =
+            ring.color +
+            Math.floor(ring.alpha * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = 1.5 + b.bass * 4 + b.mid * 2;
+        const squish = 0.6 + b.mid * 0.3 + b.high * 0.15;
+        ctx.beginPath();
+        ctx.ellipse(
+            cx,
+            cy,
+            ring.r * int,
+            ring.r * int * squish,
+            0,
+            0,
+            Math.PI * 2,
+        );
+        ctx.stroke();
+        ctx.restore();
+    });
 }
 
 // ---- Lissajous ----
 function drawLissajous(b) {
-  const p = getPalette();
-  const spd = params.speed / 50;
-  const int = params.intensity / 100;
-  const cx = W / 2, cy = H / 2;
-  const ax = (W * 0.4) * (0.5 + int * 0.5 + b.bass * 0.25 + b.high * 0.12);
-  const ay = (H * 0.35) * (0.5 + int * 0.5 + b.mid * 0.28 + b.high * 0.1);
-  const phaseDrift = b.high * 0.5;
-  const freqX = 2 + Math.floor(params.density / 25);
-  const freqY = 3 + Math.floor(params.density / 30);
-  const steps = 500;
+    const p = getPalette();
+    const spd = params.speed / 50;
+    const int = params.intensity / 100;
+    const cx = W / 2,
+        cy = H / 2;
+    const ax = W * 0.4 * (0.5 + int * 0.5 + b.bass * 0.25 + b.high * 0.12);
+    const ay = H * 0.35 * (0.5 + int * 0.5 + b.mid * 0.28 + b.high * 0.1);
+    const phaseDrift = b.high * 0.5;
+    const freqX = 2 + Math.floor(params.density / 25);
+    const freqY = 3 + Math.floor(params.density / 30);
+    const steps = 500;
 
-  for (let layer = 0; layer < 3; layer++) {
-    const color = p[layer % p.length];
-    const phaseOff = layer * 0.5;
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.4;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + (layer === 0 ? 'cc' : '55');
-    ctx.lineWidth = 1.5 - layer * 0.4;
-    ctx.beginPath();
-    for (let i = 0; i <= steps; i++) {
-      const theta = (i / steps) * Math.PI * 2;
-      const x = cx + ax * Math.sin(freqX * theta + t * 0.008 * spd + phaseOff + phaseDrift);
-      const y = cy + ay * Math.sin(freqY * theta + t * 0.006 * spd);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    for (let layer = 0; layer < 3; layer++) {
+        const color = p[layer % p.length];
+        const phaseOff = layer * 0.5;
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color + (layer === 0 ? "cc" : "55");
+        ctx.lineWidth = 1.5 - layer * 0.4;
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+            const theta = (i / steps) * Math.PI * 2;
+            const x =
+                cx +
+                ax *
+                    Math.sin(
+                        freqX * theta + t * 0.008 * spd + phaseOff + phaseDrift,
+                    );
+            const y = cy + ay * Math.sin(freqY * theta + t * 0.006 * spd);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 }
 
 // ---- Spectrum Bars ----
 function drawBars(b) {
-  const p = getPalette();
-  const barCount = Math.floor(20 + params.density * 0.6);
-  const barW = W / barCount;
-  const int = params.intensity / 50;
-  const glow = params.glow / 100;
+    const p = getPalette();
+    const barCount = Math.floor(20 + params.density * 0.6);
+    const barW = W / barCount;
+    const int = params.intensity / 50;
+    const glow = params.glow / 100;
 
-  for (let i = 0; i < barCount; i++) {
-    const fi = Math.floor((i / barCount) * 128);
-    const val = freqSmooth[fi] / 255;
-    const barH = val * H * 0.8 * int;
-    const color = p[i % p.length];
+    for (let i = 0; i < barCount; i++) {
+        const fi = Math.floor((i / barCount) * 128);
+        const val = freqSmooth[fi] / 255;
+        const barH = val * H * 0.8 * int;
+        const color = p[i % p.length];
 
-    ctx.save();
-    ctx.shadowBlur = glow * 30;
-    ctx.shadowColor = color;
-    ctx.fillStyle = color + 'cc';
-    ctx.fillRect(i * barW + 1, H / 2 - barH / 2, barW - 2, barH);
+        ctx.save();
+        ctx.shadowBlur = glow * 30;
+        ctx.shadowColor = color;
+        ctx.fillStyle = color + "cc";
+        ctx.fillRect(i * barW + 1, H / 2 - barH / 2, barW - 2, barH);
 
-    if (barH > 4) {
-      ctx.fillStyle = '#ffffff44';
-      ctx.fillRect(i * barW + 1, H / 2 - barH / 2 - 3, barW - 2, 3);
-      ctx.fillRect(i * barW + 1, H / 2 + barH / 2, barW - 2, 3);
+        if (barH > 4) {
+            ctx.fillStyle = "#ffffff44";
+            ctx.fillRect(i * barW + 1, H / 2 - barH / 2 - 3, barW - 2, 3);
+            ctx.fillRect(i * barW + 1, H / 2 + barH / 2, barW - 2, 3);
+        }
+        ctx.restore();
     }
-    ctx.restore();
-  }
 }
 
 // ---- Background ----
 function drawBackground(b) {
-  switch (bg) {
-    case 'trail': {
-      const fade = 0.12 + (1 - params.intensity / 100) * 0.1;
-      ctx.fillStyle = `rgba(0,0,0,${fade})`;
-      ctx.fillRect(0, 0, W, H);
-      break;
+    switch (bg) {
+        case "trail": {
+            const fade = 0.12 + (1 - params.intensity / 100) * 0.1;
+            ctx.fillStyle = `rgba(0,0,0,${fade})`;
+            ctx.fillRect(0, 0, W, H);
+            break;
+        }
+        case "black": {
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, W, H);
+            break;
+        }
+        case "flash": {
+            ctx.fillStyle = `rgba(0,0,0,${0.3 - b.bass * 0.25})`;
+            ctx.fillRect(0, 0, W, H);
+            if (b.bass > 0.6) {
+                const p = getPalette();
+                ctx.fillStyle = p[0] + "15";
+                ctx.fillRect(0, 0, W, H);
+            }
+            break;
+        }
+        case "color": {
+            const p = getPalette();
+            ctx.fillStyle = "rgba(0,0,0,0.15)";
+            ctx.fillRect(0, 0, W, H);
+            const grad = ctx.createRadialGradient(
+                W / 2,
+                H / 2,
+                0,
+                W / 2,
+                H / 2,
+                W * 0.7,
+            );
+            grad.addColorStop(
+                0,
+                p[0] +
+                    Math.floor(b.bass * 30)
+                        .toString(16)
+                        .padStart(2, "0"),
+            );
+            grad.addColorStop(1, "transparent");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            break;
+        }
     }
-    case 'black': {
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-      break;
-    }
-    case 'flash': {
-      ctx.fillStyle = `rgba(0,0,0,${0.3 - b.bass * 0.25})`;
-      ctx.fillRect(0, 0, W, H);
-      if (b.bass > 0.6) {
-        const p = getPalette();
-        ctx.fillStyle = p[0] + '15';
-        ctx.fillRect(0, 0, W, H);
-      }
-      break;
-    }
-    case 'color': {
-      const p = getPalette();
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(0, 0, W, H);
-      const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.7);
-      grad.addColorStop(0, p[0] + Math.floor(b.bass * 30).toString(16).padStart(2, '0'));
-      grad.addColorStop(1, 'transparent');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
-      break;
-    }
-  }
 }
 
 function updateFreqBar(b) {
-  const bar = document.getElementById('freqBar');
-  bar.style.transform = `scaleX(${Math.min(1, b.total * 3)})`;
-  bar.style.opacity = 0.2 + b.bass * 0.6;
+    const bar = document.getElementById("freqBar");
+    bar.style.transform = `scaleX(${Math.min(1, b.total * 3)})`;
+    bar.style.opacity = 0.2 + b.bass * 0.6;
 }
 
 // ---- Radial ----
 function drawRadial(b) {
-  const p = getPalette();
-  const cx = W / 2, cy = H / 2;
-  const barCount = Math.floor(60 + params.density * 2);
-  const innerR = 55 + b.bass * 50;
-  const maxLen = (H * 0.35) * (params.intensity / 50);
-  const glow = params.glow / 100;
-  const rotOff = t * 0.002 * (params.speed / 50);
+    const p = getPalette();
+    const cx = W / 2,
+        cy = H / 2;
+    const barCount = Math.floor(60 + params.density * 2);
+    const innerR = 55 + b.bass * 50;
+    const maxLen = H * 0.35 * (params.intensity / 50);
+    const glow = params.glow / 100;
+    const rotOff = t * 0.002 * (params.speed / 50);
 
-  for (let i = 0; i < barCount; i++) {
-    const fi = Math.floor((i / barCount) * 128);
-    const val = freqSmooth[fi] / 255;
-    const angle = (i / barCount) * Math.PI * 2 + rotOff - Math.PI / 2;
-    const len = val * maxLen;
-    const color = p[i % p.length];
+    for (let i = 0; i < barCount; i++) {
+        const fi = Math.floor((i / barCount) * 128);
+        const val = freqSmooth[fi] / 255;
+        const angle = (i / barCount) * Math.PI * 2 + rotOff - Math.PI / 2;
+        const len = val * maxLen;
+        const color = p[i % p.length];
+        ctx.save();
+        ctx.shadowBlur = glow * 25;
+        ctx.shadowColor = color;
+        ctx.strokeStyle =
+            color +
+            Math.floor((0.4 + val * 0.6) * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = Math.max(
+            1.5,
+            ((2 * Math.PI * innerR) / barCount) * 0.6,
+        );
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(
+            cx + Math.cos(angle) * innerR,
+            cy + Math.sin(angle) * innerR,
+        );
+        ctx.lineTo(
+            cx + Math.cos(angle) * (innerR + len),
+            cy + Math.sin(angle) * (innerR + len),
+        );
+        ctx.stroke();
+        ctx.restore();
+    }
+
     ctx.save();
-    ctx.shadowBlur = glow * 25;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + Math.floor((0.4 + val * 0.6) * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = Math.max(1.5, (2 * Math.PI * innerR / barCount) * 0.6);
-    ctx.lineCap = 'round';
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, innerR);
+    grad.addColorStop(
+        0,
+        p[0] +
+            Math.floor(b.bass * 90)
+                .toString(16)
+                .padStart(2, "0"),
+    );
+    grad.addColorStop(1, "transparent");
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
-    ctx.lineTo(cx + Math.cos(angle) * (innerR + len), cy + Math.sin(angle) * (innerR + len));
-    ctx.stroke();
+    ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
-  }
-
-  ctx.save();
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, innerR);
-  grad.addColorStop(0, p[0] + Math.floor(b.bass * 90).toString(16).padStart(2, '0'));
-  grad.addColorStop(1, 'transparent');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
 }
 
 // ---- Helix ----
 function drawHelix(b) {
-  const p = getPalette();
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
-  const cx = W / 2;
-  const amp = W * 0.28 * int * (0.6 + b.bass * 0.4 + b.mid * 0.2);
-  const turns = 3 + params.density / 40;
-  const steps = 300;
+    const p = getPalette();
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
+    const cx = W / 2;
+    const amp = W * 0.28 * int * (0.6 + b.bass * 0.4 + b.mid * 0.2);
+    const turns = 3 + params.density / 40;
+    const steps = 300;
 
-  for (let strand = 0; strand < 2; strand++) {
-    const phaseOff = strand * Math.PI;
-    const color = p[strand % p.length];
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.4;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + 'dd';
-    ctx.lineWidth = 2 + b.bass * 3 + b.mid * 1.5;
-    ctx.beginPath();
-    for (let i = 0; i <= steps; i++) {
-      const frac = i / steps;
-      const y = frac * H;
-      const theta = frac * Math.PI * 2 * turns + t * 0.025 * spd + phaseOff;
-      const fi = Math.floor(frac * 127);
-      const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
-      const x = cx + Math.cos(theta) * amp * ampMod;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    for (let strand = 0; strand < 2; strand++) {
+        const phaseOff = strand * Math.PI;
+        const color = p[strand % p.length];
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color + "dd";
+        ctx.lineWidth = 2 + b.bass * 3 + b.mid * 1.5;
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+            const frac = i / steps;
+            const y = frac * H;
+            const theta =
+                frac * Math.PI * 2 * turns + t * 0.025 * spd + phaseOff;
+            const fi = Math.floor(frac * 127);
+            const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
+            const x = cx + Math.cos(theta) * amp * ampMod;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 
-  const rungCount = Math.floor(turns * 14);
-  for (let i = 0; i < rungCount; i++) {
-    const frac = i / rungCount;
-    const y = frac * H;
-    const theta = frac * Math.PI * 2 * turns + t * 0.025 * spd;
-    const fi = Math.floor(frac * 127);
-    const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
-    const x1 = cx + Math.cos(theta) * amp * ampMod;
-    const x2 = cx + Math.cos(theta + Math.PI) * amp * ampMod;
-    const val = freqSmooth[fi] / 255;
-    const color = p[(i + 1) % p.length];
-    ctx.save();
-    ctx.globalAlpha = 0.2 + val * 0.8;
-    ctx.shadowBlur = params.glow * 0.3;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1 + val * 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x1, y);
-    ctx.lineTo(x2, y);
-    ctx.stroke();
-    ctx.restore();
-  }
+    const rungCount = Math.floor(turns * 14);
+    for (let i = 0; i < rungCount; i++) {
+        const frac = i / rungCount;
+        const y = frac * H;
+        const theta = frac * Math.PI * 2 * turns + t * 0.025 * spd;
+        const fi = Math.floor(frac * 127);
+        const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
+        const x1 = cx + Math.cos(theta) * amp * ampMod;
+        const x2 = cx + Math.cos(theta + Math.PI) * amp * ampMod;
+        const val = freqSmooth[fi] / 255;
+        const color = p[(i + 1) % p.length];
+        ctx.save();
+        ctx.globalAlpha = 0.2 + val * 0.8;
+        ctx.shadowBlur = params.glow * 0.3;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1 + val * 2.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+        ctx.restore();
+    }
 }
 
 // ---- Starfield ----
@@ -425,55 +514,66 @@ const MAX_STARS = 350;
 let stars = [];
 
 function randomStar() {
-  const p = getPalette();
-  return {
-    x: (Math.random() - 0.5) * W * 2.5,
-    y: (Math.random() - 0.5) * H * 2.5,
-    z: W,
-    pz: W,
-    color: p[Math.floor(Math.random() * p.length)],
-  };
+    const p = getPalette();
+    return {
+        x: (Math.random() - 0.5) * W * 2.5,
+        y: (Math.random() - 0.5) * H * 2.5,
+        z: W,
+        pz: W,
+        color: p[Math.floor(Math.random() * p.length)],
+    };
 }
 
 function drawStarfield(b) {
-  if (stars.length === 0) {
-    stars = Array.from({ length: MAX_STARS }, () => {
-      const s = randomStar();
-      s.z = Math.random() * W;
-      s.pz = s.z;
-      return s;
-    });
-  }
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
-  const cx = W / 2, cy = H / 2;
-  const speed = (1.5 + b.bass * 10 + b.mid * 5) * spd;
+    if (stars.length === 0) {
+        stars = Array.from({ length: MAX_STARS }, () => {
+            const s = randomStar();
+            s.z = Math.random() * W;
+            s.pz = s.z;
+            return s;
+        });
+    }
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
+    const cx = W / 2,
+        cy = H / 2;
+    const speed = (1.5 + b.bass * 10 + b.mid * 5) * spd;
 
-  for (let i = 0; i < stars.length; i++) {
-    const s = stars[i];
-    s.pz = s.z;
-    s.z -= speed;
-    if (s.z <= 0) { Object.assign(s, randomStar()); continue; }
+    for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        s.pz = s.z;
+        s.z -= speed;
+        if (s.z <= 0) {
+            Object.assign(s, randomStar());
+            continue;
+        }
 
-    const sx = (s.x / s.z) * W * 0.5 + cx;
-    const sy = (s.y / s.z) * H * 0.5 + cy;
-    const px = (s.x / s.pz) * W * 0.5 + cx;
-    const py = (s.y / s.pz) * H * 0.5 + cy;
-    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) { Object.assign(s, randomStar()); continue; }
+        const sx = (s.x / s.z) * W * 0.5 + cx;
+        const sy = (s.y / s.z) * H * 0.5 + cy;
+        const px = (s.x / s.pz) * W * 0.5 + cx;
+        const py = (s.y / s.pz) * H * 0.5 + cy;
+        if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) {
+            Object.assign(s, randomStar());
+            continue;
+        }
 
-    const brightness = (1 - s.z / W) * int;
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.3;
-    ctx.shadowColor = s.color;
-    ctx.strokeStyle = s.color + Math.floor(brightness * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = Math.max(1, brightness * 3);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(sx, sy);
-    ctx.stroke();
-    ctx.restore();
-  }
+        const brightness = (1 - s.z / W) * int;
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.3;
+        ctx.shadowColor = s.color;
+        ctx.strokeStyle =
+            s.color +
+            Math.floor(brightness * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = Math.max(1, brightness * 3);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+        ctx.restore();
+    }
 }
 
 // ---- Terrain ----
@@ -482,705 +582,835 @@ let terrainRows = [];
 let terrainTick = 0;
 
 function drawTerrain(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const spd = params.speed / 50;
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const spd = params.speed / 50;
 
-  terrainTick++;
-  if (terrainTick % Math.max(1, Math.floor(4 / spd)) === 0) {
-    terrainRows.unshift(new Float32Array(freqSmooth));
-    if (terrainRows.length > TERRAIN_ROWS) terrainRows.pop();
-  }
-  if (terrainRows.length === 0) return;
-
-  const horizonY = H * 0.52;
-  const maxBarH = H * 0.44 * int;
-  const pts = 36;
-
-  for (let r = terrainRows.length - 1; r >= 0; r--) {
-    const row = terrainRows[r];
-    const depth = r / (terrainRows.length - 1 || 1);
-    const perspective = 1 - depth * 0.82;
-    const rowW = W * perspective;
-    const xOff = (W - rowW) / 2;
-    const yBase = horizonY + (1 - depth) * (H - horizonY);
-    const rowMaxH = maxBarH * perspective;
-    const alpha = 0.1 + (1 - depth) * 0.9;
-    const color = p[r % p.length];
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.shadowBlur = params.glow * 0.25 * (1 - depth);
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1 + (1 - depth) * 2.5;
-    ctx.beginPath();
-    for (let i = 0; i <= pts; i++) {
-      const fi = Math.floor((i / pts) * 127);
-      const val = row[fi] / 255;
-      const x = xOff + (i / pts) * rowW;
-      const y = yBase - val * rowMaxH;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    terrainTick++;
+    if (terrainTick % Math.max(1, Math.floor(4 / spd)) === 0) {
+        terrainRows.unshift(new Float32Array(freqSmooth));
+        if (terrainRows.length > TERRAIN_ROWS) terrainRows.pop();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
+    if (terrainRows.length === 0) return;
+
+    const horizonY = H * 0.52;
+    const maxBarH = H * 0.44 * int;
+    const pts = 36;
+
+    for (let r = terrainRows.length - 1; r >= 0; r--) {
+        const row = terrainRows[r];
+        const depth = r / (terrainRows.length - 1 || 1);
+        const perspective = 1 - depth * 0.82;
+        const rowW = W * perspective;
+        const xOff = (W - rowW) / 2;
+        const yBase = horizonY + (1 - depth) * (H - horizonY);
+        const rowMaxH = maxBarH * perspective;
+        const alpha = 0.1 + (1 - depth) * 0.9;
+        const color = p[r % p.length];
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = params.glow * 0.25 * (1 - depth);
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1 + (1 - depth) * 2.5;
+        ctx.beginPath();
+        for (let i = 0; i <= pts; i++) {
+            const fi = Math.floor((i / pts) * 127);
+            const val = row[fi] / 255;
+            const x = xOff + (i / pts) * rowW;
+            const y = yBase - val * rowMaxH;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
 }
 
 // ---- Aurora ----
 function drawAurora(b) {
-  const p = getPalette();
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
-  const layers = Math.floor(5 + params.density / 20);
+    const p = getPalette();
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
+    const layers = Math.floor(5 + params.density / 20);
 
-  for (let layer = 0; layer < layers; layer++) {
-    const fi = Math.floor((layer / layers) * 80);
-    const val = freqSmooth[fi] / 255;
-    const color = p[layer % p.length];
-    const waveX = Math.sin(layer * 1.3 + t * 0.015 * spd) * W * 0.07;
-    const x = W * (layer / layers) + waveX;
-    const colW = (W / layers) * (0.55 + val * 0.9);
-    const hFrac = 0.18 + val * 0.72 * int;
-    const yTop = H * 0.02 + Math.sin(layer * 0.9 + t * 0.012 * spd) * H * 0.06;
-    const curtainH = H * hFrac;
-    const alpha = 0.07 + val * 0.55;
-    const alphaHex = n => Math.floor(n * 255).toString(16).padStart(2, '0');
+    for (let layer = 0; layer < layers; layer++) {
+        const fi = Math.floor((layer / layers) * 80);
+        const val = freqSmooth[fi] / 255;
+        const color = p[layer % p.length];
+        const waveX = Math.sin(layer * 1.3 + t * 0.015 * spd) * W * 0.07;
+        const x = W * (layer / layers) + waveX;
+        const colW = (W / layers) * (0.55 + val * 0.9);
+        const hFrac = 0.18 + val * 0.72 * int;
+        const yTop =
+            H * 0.02 + Math.sin(layer * 0.9 + t * 0.012 * spd) * H * 0.06;
+        const curtainH = H * hFrac;
+        const alpha = 0.07 + val * 0.55;
+        const alphaHex = (n) =>
+            Math.floor(n * 255)
+                .toString(16)
+                .padStart(2, "0");
 
-    const grad = ctx.createLinearGradient(0, yTop, 0, yTop + curtainH);
-    grad.addColorStop(0, 'transparent');
-    grad.addColorStop(0.12, color + alphaHex(alpha));
-    grad.addColorStop(0.55, color + alphaHex(alpha * 0.65));
-    grad.addColorStop(1, 'transparent');
+        const grad = ctx.createLinearGradient(0, yTop, 0, yTop + curtainH);
+        grad.addColorStop(0, "transparent");
+        grad.addColorStop(0.12, color + alphaHex(alpha));
+        grad.addColorStop(0.55, color + alphaHex(alpha * 0.65));
+        grad.addColorStop(1, "transparent");
 
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.8;
-    ctx.shadowColor = color;
-    ctx.fillStyle = grad;
-    ctx.fillRect(x - colW * 0.15, yTop, colW, curtainH);
-    ctx.restore();
-  }
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.8;
+        ctx.shadowColor = color;
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - colW * 0.15, yTop, colW, curtainH);
+        ctx.restore();
+    }
 }
 
 // ---- Kaleidoscope ----
 function drawKaleidoscope(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const spd = params.speed / 50;
-  const cx = W / 2, cy = H / 2;
-  const segments = Math.max(4, Math.round(params.density / 12) * 2 + 4);
-  const sliceAngle = (Math.PI * 2) / segments;
-  const radius = Math.min(W, H) * 0.48;
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const spd = params.speed / 50;
+    const cx = W / 2,
+        cy = H / 2;
+    const segments = Math.max(4, Math.round(params.density / 12) * 2 + 4);
+    const sliceAngle = (Math.PI * 2) / segments;
+    const radius = Math.min(W, H) * 0.48;
 
-  for (let s = 0; s < segments; s++) {
-    const color = p[s % p.length];
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(s * sliceAngle);
-    if (s % 2 === 1) ctx.scale(1, -1);
-    ctx.shadowBlur = params.glow * 0.4;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + 'aa';
-    ctx.lineWidth = 1.5 + b.bass * 2.5;
-    ctx.beginPath();
-    const pts = 80;
-    for (let i = 0; i <= pts; i++) {
-      const fi = Math.floor((i / pts) * 64);
-      const val = freqSmooth[fi] / 255;
-      const r = (i / pts) * radius;
-      const lateralOff = Math.sin(i * 0.22 + t * 0.03 * spd + s) * val * 35 * int;
-      const x = Math.cos(val * 0.4 * int) * r;
-      const y = Math.sin(val * 0.4 * int) * r + lateralOff;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    for (let s = 0; s < segments; s++) {
+        const color = p[s % p.length];
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(s * sliceAngle);
+        if (s % 2 === 1) ctx.scale(1, -1);
+        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color + "aa";
+        ctx.lineWidth = 1.5 + b.bass * 2.5;
+        ctx.beginPath();
+        const pts = 80;
+        for (let i = 0; i <= pts; i++) {
+            const fi = Math.floor((i / pts) * 64);
+            const val = freqSmooth[fi] / 255;
+            const r = (i / pts) * radius;
+            const lateralOff =
+                Math.sin(i * 0.22 + t * 0.03 * spd + s) * val * 35 * int;
+            const x = Math.cos(val * 0.4 * int) * r;
+            const y = Math.sin(val * 0.4 * int) * r + lateralOff;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 }
 
 // ---- Ripples ----
 let ripples = [];
 
 function drawRipples(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const spd = params.speed / 50;
-  const cx = W / 2, cy = H / 2;
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const spd = params.speed / 50;
+    const cx = W / 2,
+        cy = H / 2;
 
-  if (b.bass > 0.42) {
-    const count = Math.floor(1 + b.bass * 2 + b.mid);
-    for (let i = 0; i < count && ripples.length < 80; i++) {
-      ripples.push({
-        r: 5 + i * 18,
-        maxR: (100 + b.bass * 300 + Math.random() * 80) * int,
-        color: p[Math.floor(Math.random() * p.length)],
-        lw: 1.5 + b.bass * 3.5,
-        spd: (0.8 + Math.random() * 0.8) * spd,
-      });
+    if (b.bass > 0.42) {
+        const count = Math.floor(1 + b.bass * 2 + b.mid);
+        for (let i = 0; i < count && ripples.length < 80; i++) {
+            ripples.push({
+                r: 5 + i * 18,
+                maxR: (100 + b.bass * 300 + Math.random() * 80) * int,
+                color: p[Math.floor(Math.random() * p.length)],
+                lw: 1.5 + b.bass * 3.5,
+                spd: (0.8 + Math.random() * 0.8) * spd,
+            });
+        }
     }
-  }
 
-  for (let i = ripples.length - 1; i >= 0; i--) {
-    const rpl = ripples[i];
-    rpl.r += (2.5 + b.mid * 2) * rpl.spd;
-    const alpha = 1 - rpl.r / rpl.maxR;
-    if (alpha <= 0) { ripples.splice(i, 1); continue; }
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.35;
-    ctx.shadowColor = rpl.color;
-    ctx.strokeStyle = rpl.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = rpl.lw * alpha;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rpl.r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+        const rpl = ripples[i];
+        rpl.r += (2.5 + b.mid * 2) * rpl.spd;
+        const alpha = 1 - rpl.r / rpl.maxR;
+        if (alpha <= 0) {
+            ripples.splice(i, 1);
+            continue;
+        }
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.35;
+        ctx.shadowColor = rpl.color;
+        ctx.strokeStyle =
+            rpl.color +
+            Math.floor(alpha * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = rpl.lw * alpha;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rpl.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
 }
 
 // ---- Guitar Hero ----
-const GH_LANES = 5;
-let ghLastAnySpawn = -999;
-const GH_LOOKAHEAD = 2.6;   // seconds of future visible
-const GH_LOOKBACK  = 3.2;   // seconds of past visible (reverse mode)
-const GH_NOTE_DUR  = 0.18;  // note block height in seconds
+const GH_LANES          = 5;
+const GH_LOOKAHEAD      = 2.6;
+const GH_LOOKBACK       = 3.2;
+const GH_NOTE_DUR       = 0.18;   // fallback duration for analyzed notes
+const GH_LINGER_DUR     = 0.20;   // seconds note glows at fret after hitting
+const GH_SUSTAIN_FRAMES = 3;      // frames of grace after energy drops before note ends
+let ghLaneLiveNote = new Array(5).fill(null);
+let ghLaneSustain  = new Int32Array(5).fill(0);
 
 function ghSongTime() {
-  if (!audioCtx) return t / 60;
-  if (fileAudioActive && fileStartedAt > 0) return audioCtx.currentTime - fileStartedAt;
-  return fileOffset || 0;
+    if (!audioCtx) return t / 60;
+    if (fileAudioActive && fileStartedAt > 0)
+        return audioCtx.currentTime - fileStartedAt;
+    return fileOffset || 0;
 }
 
 function drawGuitarHero(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const cx = W / 2;
-  const now = ghSongTime();
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const cx = W / 2;
+    const now = ghSongTime();
 
-  // Highway geometry
-  const horizonY  = H * 0.10;
-  const fretY     = H * 0.80;
-  const horizonW  = W * 0.13;
-  const fretW     = W * 0.97;
+    // Highway geometry
+    const horizonY = H * 0.1;
+    const fretY = H * 0.8;
+    const horizonW = W * 0.13;
+    const fretW = W * 0.97;
 
-  const roadW  = y => horizonW + (fretW  - horizonW)  * ((y - horizonY) / (fretY - horizonY));
-  const roadL  = y => cx - roadW(y) / 2;
-  const laneW  = y => roadW(y) / GH_LANES;
-  const noteX  = (y, lane) => roadL(y) + lane * laneW(y);
-  const yOfProg = prog => horizonY + prog * (fretY - horizonY);
-  // Hyperbolic depth mapping: matches perspective road geometry so notes
-  // accelerate toward the fret instead of warping with constant screen velocity.
-  const progOfTime = dt => dt <= 0 ? 1.0 : 1.0 / (1.0 + dt * 3.0);
+    const roadW = (y) =>
+        horizonW + (fretW - horizonW) * ((y - horizonY) / (fretY - horizonY));
+    const roadL = (y) => cx - roadW(y) / 2;
+    const laneW = (y) => roadW(y) / GH_LANES;
+    const noteX = (y, lane) => roadL(y) + lane * laneW(y);
+    const yOfProg = (prog) => horizonY + prog * (fretY - horizonY);
+    // Hyperbolic depth mapping: matches perspective road geometry so notes
+    // accelerate toward the fret instead of warping with constant screen velocity.
+    const progOfTime = (dt) => (dt <= 0 ? 1.0 : 1.0 / (1.0 + dt * 3.0));
 
-  // ---- Highway background ----
-  ctx.save();
-  const hBg = ctx.createLinearGradient(0, horizonY, 0, fretY);
-  hBg.addColorStop(0, '#04040e');
-  hBg.addColorStop(1, '#080818');
-  ctx.beginPath();
-  ctx.moveTo(roadL(horizonY), horizonY);
-  ctx.lineTo(roadL(horizonY) + horizonW, horizonY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.lineTo(roadL(fretY), fretY);
-  ctx.closePath();
-  ctx.fillStyle = hBg;
-  ctx.fill();
-  ctx.restore();
-
-  // ---- Lane fills (subtle alternating shading) ----
-  for (let lane = 0; lane < GH_LANES; lane++) {
-    if (lane % 2 === 0) continue;
+    // ---- Highway background ----
     ctx.save();
-    ctx.globalAlpha = 0.04;
-    ctx.fillStyle = '#ffffff';
+    const hBg = ctx.createLinearGradient(0, horizonY, 0, fretY);
+    hBg.addColorStop(0, "#04040e");
+    hBg.addColorStop(1, "#080818");
     ctx.beginPath();
-    ctx.moveTo(noteX(horizonY, lane), horizonY);
-    ctx.lineTo(noteX(horizonY, lane) + laneW(horizonY), horizonY);
-    ctx.lineTo(noteX(fretY, lane)    + laneW(fretY),    fretY);
-    ctx.lineTo(noteX(fretY, lane),   fretY);
+    ctx.moveTo(roadL(horizonY), horizonY);
+    ctx.lineTo(roadL(horizonY) + horizonW, horizonY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
+    ctx.lineTo(roadL(fretY), fretY);
     ctx.closePath();
+    ctx.fillStyle = hBg;
     ctx.fill();
     ctx.restore();
-  }
 
-  // ---- Lane dividers ----
-  for (let d = 0; d <= GH_LANES; d++) {
-    const x0 = roadL(horizonY) + d * laneW(horizonY);
-    const x1 = roadL(fretY)    + d * laneW(fretY);
+    // ---- Lane fills (subtle alternating shading) ----
+    for (let lane = 0; lane < GH_LANES; lane++) {
+        if (lane % 2 === 0) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.04;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(noteX(horizonY, lane), horizonY);
+        ctx.lineTo(noteX(horizonY, lane) + laneW(horizonY), horizonY);
+        ctx.lineTo(noteX(fretY, lane) + laneW(fretY), fretY);
+        ctx.lineTo(noteX(fretY, lane), fretY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // ---- Lane dividers ----
+    for (let d = 0; d <= GH_LANES; d++) {
+        const x0 = roadL(horizonY) + d * laneW(horizonY);
+        const x1 = roadL(fretY) + d * laneW(fretY);
+        ctx.save();
+        ctx.strokeStyle = "#ffffff12";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, horizonY);
+        ctx.lineTo(x1, fretY);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // ---- Scrolling center dashes ----
+    const dashCount = 10;
+    const dashScroll = (now * 0.35) % 1;
+    for (let d = 0; d < dashCount; d++) {
+        const progA = (d + dashScroll) / dashCount;
+        const progB = (d + dashScroll + 0.45) / dashCount;
+        if (progA > 1 || progB < 0) continue;
+        const yA = yOfProg(Math.min(1, progA));
+        const yB = yOfProg(Math.min(1, progB));
+        for (let lane = 1; lane < GH_LANES; lane++) {
+            const xA = noteX(yA, lane);
+            const xB = noteX(yB, lane);
+            ctx.save();
+            ctx.strokeStyle = `rgba(255,255,255,${0.03 + progA * 0.04})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(xA, yA);
+            ctx.lineTo(xB, yB);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // ---- Collect notes to render ----
+    const toRender = [];
+
+    if (ghNotes && ghNotes.length > 0) {
+        // Binary-search window [now - 0.3, now + GH_LOOKAHEAD + 0.1]
+        const tLo = now - 0.3,
+            tHi = now + GH_LOOKAHEAD + 0.1;
+        let lo = 0,
+            hi = ghNotes.length - 1;
+        while (lo < hi) {
+            const m = (lo + hi) >> 1;
+            ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
+        }
+        for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++)
+            toRender.push(ghNotes[i]);
+    } else if (ghNotes === null) {
+        const BAND_BINS = [[0,8],[8,20],[20,50],[50,90],[90,128]];
+        const liveNow = t / 60;
+        for (let bi = 0; bi < GH_LANES; bi++) {
+            const [blo, bhi] = BAND_BINS[bi];
+            const energy = avg(freqSmooth, blo, bhi) / 255;
+            ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
+            const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+            if (energy > thresh) {
+                ghLaneSustain[bi] = GH_SUSTAIN_FRAMES;
+                if (!ghLaneLiveNote[bi]) {
+                    ghLaneLiveNote[bi] = {
+                        startTime: liveNow + GH_LOOKAHEAD,
+                        endTime:   liveNow + GH_LOOKAHEAD,
+                        lane: bi,
+                        intensity: Math.min(1, (energy - thresh) / 0.4),
+                        big: energy > thresh * 1.6,
+                    };
+                } else {
+                    ghLaneLiveNote[bi].endTime = liveNow + GH_LOOKAHEAD;
+                }
+            } else if (ghLaneSustain[bi] > 0) {
+                ghLaneSustain[bi]--;
+                if (ghLaneLiveNote[bi]) ghLaneLiveNote[bi].endTime = liveNow + GH_LOOKAHEAD;
+            } else if (ghLaneLiveNote[bi]) {
+                ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
+                ghLaneLiveNote[bi] = null;
+            }
+        }
+        ghLiveNotes = ghLiveNotes.filter(n => n.startTime >= liveNow - GH_LINGER_DUR - 0.2);
+        toRender.push(...ghLiveNotes);
+        for (let bi = 0; bi < GH_LANES; bi++) {
+            if (ghLaneLiveNote[bi]) toRender.push(ghLaneLiveNote[bi]);
+        }
+    }
+
+    // ---- Draw notes ----
+    const h2x = (n) => Math.floor(n * 255).toString(16).padStart(2, "0");
+    const refTime = ghNotes ? now : t / 60;
+
+    for (const note of toRender) {
+        const dt = (note.startTime ?? note.time) - refTime;
+        if (dt < -GH_LINGER_DUR) continue;
+
+        const linger = dt < 0 ? Math.max(0, 1 + dt / GH_LINGER_DUR) : 1.0;
+        const prog   = dt <= 0 ? 1.0 : progOfTime(dt);
+        const y      = yOfProg(Math.min(1, prog));
+        const nX     = noteX(y, note.lane);
+        const nW     = laneW(y) * 0.82;
+        const chipH  = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
+        const yT     = y - chipH / 2;
+        const yB     = y + chipH / 2;
+        const color  = p[note.lane % p.length];
+        const alpha  = (0.65 + note.intensity * 0.35) * int * linger;
+        const r      = Math.min(nW * 0.22, chipH * 0.45, 8);
+
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1) * (1 + linger * 0.8);
+        ctx.shadowColor = color;
+
+        const ng = ctx.createLinearGradient(nX, yT, nX, yB);
+        ng.addColorStop(0,   color + h2x(alpha * 0.6));
+        ng.addColorStop(0.5, color + h2x(alpha));
+        ng.addColorStop(1,   color + h2x(alpha * 0.6));
+        ctx.fillStyle = ng;
+
+        ctx.beginPath();
+        ctx.moveTo(nX + r, yT);
+        ctx.lineTo(nX + nW - r, yT);
+        ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
+        ctx.lineTo(nX + nW, yB - r);
+        ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
+        ctx.lineTo(nX + r, yB);
+        ctx.arcTo(nX, yB, nX, yB - r, r);
+        ctx.lineTo(nX, yT + r);
+        ctx.arcTo(nX, yT, nX + r, yT, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff" + h2x(Math.min(1, 0.25 + note.intensity * 0.2 + linger * 0.4));
+        ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
+        ctx.restore();
+    }
+
+    // ---- Fret buttons ----
+    const fretBtnY = fretY + H * 0.075;
+    const fretBtnR = laneW(fretY) * 0.36;
+
+    for (let lane = 0; lane < GH_LANES; lane++) {
+        const bx = noteX(fretY, lane) + laneW(fretY) * 0.5;
+        const color = p[lane % p.length];
+
+        let hit = 0;
+        for (const n of toRender) {
+            if (n.lane !== lane) continue;
+            const tN = n.startTime ?? n.time;
+            const tF = n.endTime   ?? (tN + GH_NOTE_DUR);
+            const dtN = tN - refTime;
+            const dtF = tF - refTime;
+            if (dtN > 0.25 || dtN < -GH_LINGER_DUR) continue;
+            const prox = dtN > 0 ? 1 - dtN / 0.25        // approaching
+                       : dtF >= 0 ? 1.0                   // active (front hit, back pending)
+                       : Math.max(0, 1 + dtN / GH_LINGER_DUR); // linger fade
+            hit = Math.max(hit, prox);
+        }
+        // Also react to live audio in this band
+        const BAND_BINS = [
+            [0, 8],
+            [8, 20],
+            [20, 50],
+            [50, 90],
+            [90, 128],
+        ];
+        const liveVal = avg(freqSmooth, ...BAND_BINS[lane]) / 255;
+        const glow = Math.max(hit, liveVal * 0.45);
+
+        ctx.save();
+        ctx.shadowBlur = 15 + glow * 35;
+        ctx.shadowColor = color;
+
+        // Outer ring
+        ctx.strokeStyle =
+            color +
+            Math.floor((0.35 + glow * 0.65) * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = 2 + glow * 3;
+        ctx.beginPath();
+        ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Fill on hit
+        if (glow > 0.08) {
+            ctx.fillStyle =
+                color +
+                Math.floor(glow * 0.55 * 255)
+                    .toString(16)
+                    .padStart(2, "0");
+            ctx.beginPath();
+            ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Center dot
+        ctx.fillStyle =
+            color +
+            Math.floor((0.3 + glow * 0.7) * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.beginPath();
+        ctx.arc(bx, fretBtnY, fretBtnR * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // ---- Fret line ----
     ctx.save();
-    ctx.strokeStyle = '#ffffff12';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#ffffff28";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(x0, horizonY);
-    ctx.lineTo(x1, fretY);
+    ctx.moveTo(roadL(fretY), fretY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
+    ctx.stroke();
+
+    // Glow the fret line with total energy
+    ctx.strokeStyle =
+        p[0] +
+        Math.floor(b.total * 80)
+            .toString(16)
+            .padStart(2, "0");
+    ctx.lineWidth = 3 + b.bass * 6;
+    ctx.shadowBlur = params.glow * 0.4;
+    ctx.shadowColor = p[0];
+    ctx.beginPath();
+    ctx.moveTo(roadL(fretY), fretY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
     ctx.stroke();
     ctx.restore();
-  }
 
-  // ---- Scrolling center dashes ----
-  const dashCount = 10;
-  const dashScroll = (now * 0.35) % 1;
-  for (let d = 0; d < dashCount; d++) {
-    const progA = ((d + dashScroll) / dashCount);
-    const progB = ((d + dashScroll + 0.45) / dashCount);
-    if (progA > 1 || progB < 0) continue;
-    const yA = yOfProg(Math.min(1, progA));
-    const yB = yOfProg(Math.min(1, progB));
-    for (let lane = 1; lane < GH_LANES; lane++) {
-      const xA = noteX(yA, lane);
-      const xB = noteX(yB, lane);
-      ctx.save();
-      ctx.strokeStyle = `rgba(255,255,255,${0.03 + progA * 0.04})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(xA, yA);
-      ctx.lineTo(xB, yB);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  // ---- Collect notes to render ----
-  const toRender = [];
-
-  if (ghNotes && ghNotes.length > 0) {
-    // Binary-search window [now - 0.3, now + GH_LOOKAHEAD + 0.1]
-    const tLo = now - 0.3, tHi = now + GH_LOOKAHEAD + 0.1;
-    let lo = 0, hi = ghNotes.length - 1;
-    while (lo < hi) { const m = (lo + hi) >> 1; ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m); }
-    for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++) toRender.push(ghNotes[i]);
-  } else if (ghNotes === null) {
-    // Live fallback: spawn notes from real-time band energy
-    const BAND_BINS = [[0, 8], [8, 20], [20, 50], [50, 90], [90, 128]];
-    const liveNow = t / 60;
-    for (let bi = 0; bi < GH_LANES; bi++) {
-      const [blo, bhi] = BAND_BINS[bi];
-      const energy = avg(freqSmooth, blo, bhi) / 255;
-      // Slow smoothing keeps baseline stable so only true spikes break through
-      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
-      const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
-      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.50 && liveNow - ghLastAnySpawn > 0.18) {
-        ghLiveNotes.push({
-          time: liveNow + GH_LOOKAHEAD,
-          lane: bi,
-          intensity: Math.min(1, (energy - thresh) / 0.4),
-          big: energy > thresh * 1.6,
-        });
-        ghLastLiveSpawn[bi] = liveNow;
-        ghLastAnySpawn = liveNow;
-      }
-    }
-    // Prune old live notes
-    const cutoff = liveNow - GH_NOTE_DUR * 3;
-    while (ghLiveNotes.length && ghLiveNotes[0].time < cutoff) ghLiveNotes.shift();
-    const liveWindow = ghLiveNotes.filter(n => {
-      const dt = n.time - liveNow;
-      return dt > -GH_NOTE_DUR * 2 && dt < GH_LOOKAHEAD + 0.1;
-    });
-    toRender.push(...liveWindow);
-  }
-
-  // ---- Draw notes ----
-  const h2x = n => Math.floor(n * 255).toString(16).padStart(2, '0');
-  const refTime = ghNotes ? now : t / 60;
-
-  for (const note of toRender) {
-    const dt = note.time - refTime;
-    const prog = progOfTime(dt);
-    if (prog < 0 || prog > 1.02) continue;
-
-    const y = yOfProg(Math.min(1, prog));
-    const nX = noteX(y, note.lane);
-    const nW = laneW(y) * 0.82;
-    const chipH = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
-    const yT = y - chipH / 2;
-    const yB = y + chipH / 2;
-    const color = p[note.lane % p.length];
-    const alpha = (0.65 + note.intensity * 0.35) * int;
-    const r = Math.min(nW * 0.22, chipH * 0.45, 8);
-
+    // ---- Horizon glow ----
     ctx.save();
-    ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
-    ctx.shadowColor = color;
-
-    const ng = ctx.createLinearGradient(nX, yT, nX, yB);
-    ng.addColorStop(0,   color + h2x(alpha * 0.6));
-    ng.addColorStop(0.5, color + h2x(alpha));
-    ng.addColorStop(1,   color + h2x(alpha * 0.6));
-    ctx.fillStyle = ng;
-
-    ctx.beginPath();
-    ctx.moveTo(nX + r, yT);
-    ctx.lineTo(nX + nW - r, yT);
-    ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
-    ctx.lineTo(nX + nW, yB - r);
-    ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
-    ctx.lineTo(nX + r, yB);
-    ctx.arcTo(nX, yB, nX, yB - r, r);
-    ctx.lineTo(nX, yT + r);
-    ctx.arcTo(nX, yT, nX + r, yT, r);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff' + h2x(0.25 + note.intensity * 0.2);
-    ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
+    const hGrad = ctx.createRadialGradient(
+        cx,
+        horizonY,
+        0,
+        cx,
+        horizonY,
+        W * 0.5,
+    );
+    hGrad.addColorStop(
+        0,
+        p[1] +
+            Math.floor(b.mid * 40)
+                .toString(16)
+                .padStart(2, "0"),
+    );
+    hGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = hGrad;
+    ctx.fillRect(0, horizonY - 30, W, 80);
     ctx.restore();
-  }
 
-  // ---- Fret buttons ----
-  const fretBtnY = fretY;
-  const fretBtnR = laneW(fretY) * 0.36;
-
-  for (let lane = 0; lane < GH_LANES; lane++) {
-    const bx = noteX(fretY, lane) + laneW(fretY) * 0.5;
-    const color = p[lane % p.length];
-
-    // How close is the nearest note to the fret line?
-    let hit = 0;
-    for (const n of toRender) {
-      if (n.lane !== lane) continue;
-      const dist = Math.abs(n.time - refTime);
-      if (dist < 0.18) hit = Math.max(hit, 1 - dist / 0.18);
+    // ---- Analyzing overlay ----
+    if (ghNotes === null && !fileAudioActive) {
+        ctx.save();
+        ctx.fillStyle = "#ffffff18";
+        ctx.font = `12px 'Space Mono', monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("load a track to analyze", cx, H * 0.5);
+        ctx.restore();
     }
-    // Also react to live audio in this band
-    const BAND_BINS = [[0, 8], [8, 20], [20, 50], [50, 90], [90, 128]];
-    const liveVal = avg(freqSmooth, ...BAND_BINS[lane]) / 255;
-    const glow = Math.max(hit, liveVal * 0.45);
-
-    ctx.save();
-    ctx.shadowBlur = 15 + glow * 35;
-    ctx.shadowColor = color;
-
-    // Outer ring
-    ctx.strokeStyle = color + Math.floor((0.35 + glow * 0.65) * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = 2 + glow * 3;
-    ctx.beginPath();
-    ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Fill on hit
-    if (glow > 0.08) {
-      ctx.fillStyle = color + Math.floor(glow * 0.55 * 255).toString(16).padStart(2, '0');
-      ctx.beginPath();
-      ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Center dot
-    ctx.fillStyle = color + Math.floor((0.3 + glow * 0.7) * 255).toString(16).padStart(2, '0');
-    ctx.beginPath();
-    ctx.arc(bx, fretBtnY, fretBtnR * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // ---- Fret line ----
-  ctx.save();
-  ctx.strokeStyle = '#ffffff28';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(roadL(fretY), fretY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.stroke();
-
-  // Glow the fret line with total energy
-  ctx.strokeStyle = p[0] + Math.floor(b.total * 80).toString(16).padStart(2, '0');
-  ctx.lineWidth = 3 + b.bass * 6;
-  ctx.shadowBlur = params.glow * 0.4;
-  ctx.shadowColor = p[0];
-  ctx.beginPath();
-  ctx.moveTo(roadL(fretY), fretY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.stroke();
-  ctx.restore();
-
-  // ---- Horizon glow ----
-  ctx.save();
-  const hGrad = ctx.createRadialGradient(cx, horizonY, 0, cx, horizonY, W * 0.5);
-  hGrad.addColorStop(0, p[1] + Math.floor(b.mid * 40).toString(16).padStart(2, '0'));
-  hGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = hGrad;
-  ctx.fillRect(0, horizonY - 30, W, 80);
-  ctx.restore();
-
-  // ---- Analyzing overlay ----
-  if (ghNotes === null && !fileAudioActive) {
-    ctx.save();
-    ctx.fillStyle = '#ffffff18';
-    ctx.font = `12px 'Space Mono', monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('load a track to analyze', cx, H * 0.5);
-    ctx.restore();
-  }
 }
 
 function drawGuitarHeroReverse(b) {
-  const p = getPalette();
-  const int = params.intensity / 50;
-  const cx = W / 2;
-  const now = ghSongTime();
+    const p = getPalette();
+    const int = params.intensity / 50;
+    const cx = W / 2;
+    const now = ghSongTime();
 
-  const horizonY = H * 0.10;
-  const fretY    = H * 0.80;
-  const horizonW = W * 0.13;
-  const fretW    = W * 0.97;
+    const horizonY = H * 0.1;
+    const fretY = H * 0.8;
+    const horizonW = W * 0.13;
+    const fretW = W * 0.97;
 
-  const roadW  = y => horizonW + (fretW - horizonW) * ((y - horizonY) / (fretY - horizonY));
-  const roadL  = y => cx - roadW(y) / 2;
-  const laneW  = y => roadW(y) / GH_LANES;
-  const noteX  = (y, lane) => roadL(y) + lane * laneW(y);
-  const yOfProg = prog => horizonY + prog * (fretY - horizonY);
-  // Hyperbolic depth mapping matching the perspective road geometry.
-  const progOfPast = dt_past => dt_past <= 0 ? 1.0 : 1.0 / (1.0 + dt_past * 2.44);
+    const roadW = (y) =>
+        horizonW + (fretW - horizonW) * ((y - horizonY) / (fretY - horizonY));
+    const roadL = (y) => cx - roadW(y) / 2;
+    const laneW = (y) => roadW(y) / GH_LANES;
+    const noteX = (y, lane) => roadL(y) + lane * laneW(y);
+    const yOfProg = (prog) => horizonY + prog * (fretY - horizonY);
+    // Hyperbolic depth mapping matching the perspective road geometry.
+    const progOfPast = (dt_past) =>
+        dt_past <= 0 ? 1.0 : 1.0 / (1.0 + dt_past * 2.44);
 
-  // Highway background
-  ctx.save();
-  const hBg = ctx.createLinearGradient(0, horizonY, 0, fretY);
-  hBg.addColorStop(0, '#04040e');
-  hBg.addColorStop(1, '#080818');
-  ctx.beginPath();
-  ctx.moveTo(roadL(horizonY), horizonY);
-  ctx.lineTo(roadL(horizonY) + horizonW, horizonY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.lineTo(roadL(fretY), fretY);
-  ctx.closePath();
-  ctx.fillStyle = hBg;
-  ctx.fill();
-  ctx.restore();
-
-  for (let lane = 0; lane < GH_LANES; lane++) {
-    if (lane % 2 === 0) continue;
+    // Highway background
     ctx.save();
-    ctx.globalAlpha = 0.04;
-    ctx.fillStyle = '#ffffff';
+    const hBg = ctx.createLinearGradient(0, horizonY, 0, fretY);
+    hBg.addColorStop(0, "#04040e");
+    hBg.addColorStop(1, "#080818");
     ctx.beginPath();
-    ctx.moveTo(noteX(horizonY, lane), horizonY);
-    ctx.lineTo(noteX(horizonY, lane) + laneW(horizonY), horizonY);
-    ctx.lineTo(noteX(fretY, lane) + laneW(fretY), fretY);
-    ctx.lineTo(noteX(fretY, lane), fretY);
+    ctx.moveTo(roadL(horizonY), horizonY);
+    ctx.lineTo(roadL(horizonY) + horizonW, horizonY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
+    ctx.lineTo(roadL(fretY), fretY);
     ctx.closePath();
+    ctx.fillStyle = hBg;
     ctx.fill();
     ctx.restore();
-  }
 
-  for (let d = 0; d <= GH_LANES; d++) {
+    for (let lane = 0; lane < GH_LANES; lane++) {
+        if (lane % 2 === 0) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.04;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(noteX(horizonY, lane), horizonY);
+        ctx.lineTo(noteX(horizonY, lane) + laneW(horizonY), horizonY);
+        ctx.lineTo(noteX(fretY, lane) + laneW(fretY), fretY);
+        ctx.lineTo(noteX(fretY, lane), fretY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    for (let d = 0; d <= GH_LANES; d++) {
+        ctx.save();
+        ctx.strokeStyle = "#ffffff12";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(roadL(horizonY) + d * laneW(horizonY), horizonY);
+        ctx.lineTo(roadL(fretY) + d * laneW(fretY), fretY);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Scrolling dashes (upward direction)
+    const dashCount = 10;
+    const dashScroll = 1 - ((now * 0.35) % 1);
+    for (let d = 0; d < dashCount; d++) {
+        const progA = (d + dashScroll) / dashCount;
+        const progB = (d + dashScroll + 0.45) / dashCount;
+        if (progA > 1 || progB < 0) continue;
+        const yA = yOfProg(Math.min(1, progA));
+        const yB2 = yOfProg(Math.min(1, progB));
+        for (let lane = 1; lane < GH_LANES; lane++) {
+            ctx.save();
+            ctx.strokeStyle = `rgba(255,255,255,${0.03 + progA * 0.04})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(noteX(yA, lane), yA);
+            ctx.lineTo(noteX(yB2, lane), yB2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // ---- Collect notes to render ----
+    const toRender = [];
+
+    if (ghNotes && ghNotes.length > 0) {
+        const tLo = now - GH_LOOKBACK - GH_NOTE_DUR;
+        const tHi = now + GH_NOTE_DUR;
+        let lo = 0,
+            hi = ghNotes.length - 1;
+        while (lo < hi) {
+            const m = (lo + hi) >> 1;
+            ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
+        }
+        for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++)
+            toRender.push(ghNotes[i]);
+    } else if (ghNotes === null) {
+        const liveNow = t / 60;
+        const BAND_BINS = [[0,8],[8,20],[20,50],[50,90],[90,128]];
+        for (let bi = 0; bi < GH_LANES; bi++) {
+            const [blo, bhi] = BAND_BINS[bi];
+            const energy = avg(freqSmooth, blo, bhi) / 255;
+            ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
+            const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+            if (energy > thresh) {
+                ghLaneSustain[bi] = GH_SUSTAIN_FRAMES;
+                if (!ghLaneLiveNote[bi]) {
+                    ghLaneLiveNote[bi] = {
+                        startTime: liveNow,
+                        endTime:   liveNow,
+                        lane: bi,
+                        intensity: Math.min(1, (energy - thresh) / 0.4),
+                        big: energy > thresh * 1.6,
+                    };
+                } else {
+                    ghLaneLiveNote[bi].endTime = liveNow;
+                }
+            } else if (ghLaneSustain[bi] > 0) {
+                ghLaneSustain[bi]--;
+                if (ghLaneLiveNote[bi]) ghLaneLiveNote[bi].endTime = liveNow;
+            } else if (ghLaneLiveNote[bi]) {
+                ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
+                ghLaneLiveNote[bi] = null;
+            }
+        }
+        ghLiveNotes = ghLiveNotes.filter(n => n.endTime >= liveNow - GH_LOOKBACK - 0.2);
+        toRender.push(...ghLiveNotes.filter(n => n.endTime <= liveNow));
+        for (let bi = 0; bi < GH_LANES; bi++) {
+            if (ghLaneLiveNote[bi]) toRender.push(ghLaneLiveNote[bi]);
+        }
+    }
+
+    // ---- Draw notes ----
+    const h2x = (n) => Math.floor(n * 255).toString(16).padStart(2, "0");
+    const refTime = ghNotes ? now : t / 60;
+
+    for (const note of toRender) {
+        const dtPast = refTime - (note.endTime ?? note.time);
+        if (dtPast < 0 || dtPast > GH_LOOKBACK + 0.1) continue;
+
+        const prog  = progOfPast(dtPast);
+        const y     = yOfProg(Math.min(1, prog));
+        const nX    = noteX(y, note.lane);
+        const nW    = laneW(y) * 0.82;
+        const chipH = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
+        const yT    = y - chipH / 2;
+        const yB    = y + chipH / 2;
+        const color = p[note.lane % p.length];
+        const fade  = Math.max(0, 1 - dtPast / GH_LOOKBACK);
+        const alpha = (0.65 + note.intensity * 0.35) * int * fade;
+        const r     = Math.min(nW * 0.22, chipH * 0.45, 8);
+
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
+        ctx.shadowColor = color;
+
+        const ng = ctx.createLinearGradient(nX, yT, nX, yB);
+        ng.addColorStop(0,   color + h2x(alpha * 0.6));
+        ng.addColorStop(0.5, color + h2x(alpha));
+        ng.addColorStop(1,   color + h2x(alpha * 0.6));
+        ctx.fillStyle = ng;
+
+        ctx.beginPath();
+        ctx.moveTo(nX + r, yT);
+        ctx.lineTo(nX + nW - r, yT);
+        ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
+        ctx.lineTo(nX + nW, yB - r);
+        ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
+        ctx.lineTo(nX + r, yB);
+        ctx.arcTo(nX, yB, nX, yB - r, r);
+        ctx.lineTo(nX, yT + r);
+        ctx.arcTo(nX, yT, nX + r, yT, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff" + h2x(0.25 + note.intensity * 0.2);
+        ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
+        ctx.restore();
+    }
+
+    // ---- Fret buttons ----
+    const fretBtnY = fretY + H * 0.075;
+    const fretBtnR = laneW(fretY) * 0.36;
+    const BAND_BINS2 = [[0,8],[8,20],[20,50],[50,90],[90,128]];
+
+    for (let lane = 0; lane < GH_LANES; lane++) {
+        const bx = noteX(fretY, lane) + laneW(fretY) * 0.5;
+        const color = p[lane % p.length];
+
+        let hit = 0;
+        for (const n of toRender) {
+            if (n.lane !== lane) continue;
+            const tEnd = n.endTime ?? n.time;
+            const dtPastNear = refTime - tEnd;
+            if (dtPastNear < 0 || dtPastNear > 0.3) continue;
+            hit = Math.max(hit, 1 - dtPastNear / 0.3);
+        }
+        const liveVal = avg(freqSmooth, ...BAND_BINS2[lane]) / 255;
+        const glow = Math.max(hit, liveVal * 0.45);
+
+        ctx.save();
+        ctx.shadowBlur = 15 + glow * 35;
+        ctx.shadowColor = color;
+        ctx.strokeStyle =
+            color +
+            Math.floor((0.35 + glow * 0.65) * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = 2 + glow * 3;
+        ctx.beginPath();
+        ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
+        ctx.stroke();
+        if (glow > 0.08) {
+            ctx.fillStyle =
+                color +
+                Math.floor(glow * 0.55 * 255)
+                    .toString(16)
+                    .padStart(2, "0");
+            ctx.beginPath();
+            ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle =
+            color +
+            Math.floor((0.3 + glow * 0.7) * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.beginPath();
+        ctx.arc(bx, fretBtnY, fretBtnR * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // ---- Fret line ----
     ctx.save();
-    ctx.strokeStyle = '#ffffff12';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#ffffff28";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(roadL(horizonY) + d * laneW(horizonY), horizonY);
-    ctx.lineTo(roadL(fretY) + d * laneW(fretY), fretY);
+    ctx.moveTo(roadL(fretY), fretY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
+    ctx.stroke();
+    ctx.strokeStyle =
+        p[0] +
+        Math.floor(b.total * 80)
+            .toString(16)
+            .padStart(2, "0");
+    ctx.lineWidth = 3 + b.bass * 6;
+    ctx.shadowBlur = params.glow * 0.4;
+    ctx.shadowColor = p[0];
+    ctx.beginPath();
+    ctx.moveTo(roadL(fretY), fretY);
+    ctx.lineTo(roadL(fretY) + fretW, fretY);
     ctx.stroke();
     ctx.restore();
-  }
-
-  // Scrolling dashes (upward direction)
-  const dashCount = 10;
-  const dashScroll = 1 - (now * 0.35) % 1;
-  for (let d = 0; d < dashCount; d++) {
-    const progA = ((d + dashScroll) / dashCount);
-    const progB = ((d + dashScroll + 0.45) / dashCount);
-    if (progA > 1 || progB < 0) continue;
-    const yA = yOfProg(Math.min(1, progA));
-    const yB2 = yOfProg(Math.min(1, progB));
-    for (let lane = 1; lane < GH_LANES; lane++) {
-      ctx.save();
-      ctx.strokeStyle = `rgba(255,255,255,${0.03 + progA * 0.04})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(noteX(yA, lane), yA);
-      ctx.lineTo(noteX(yB2, lane), yB2);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  // ---- Collect notes to render ----
-  const toRender = [];
-
-  if (ghNotes && ghNotes.length > 0) {
-    const tLo = now - GH_LOOKBACK - GH_NOTE_DUR;
-    const tHi = now + GH_NOTE_DUR;
-    let lo = 0, hi = ghNotes.length - 1;
-    while (lo < hi) { const m = (lo + hi) >> 1; ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m); }
-    for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++) toRender.push(ghNotes[i]);
-  } else if (ghNotes === null) {
-    const liveNow = t / 60;
-    const BAND_BINS = [[0, 8], [8, 20], [20, 50], [50, 90], [90, 128]];
-    for (let bi = 0; bi < GH_LANES; bi++) {
-      const [blo, bhi] = BAND_BINS[bi];
-      const energy = avg(freqSmooth, blo, bhi) / 255;
-      ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
-      const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
-      if (energy > thresh && liveNow - ghLastLiveSpawn[bi] > 0.50 && liveNow - ghLastAnySpawn > 0.18) {
-        ghLiveNotes.push({
-          time: liveNow,
-          lane: bi,
-          intensity: Math.min(1, (energy - thresh) / 0.4),
-          big: energy > thresh * 1.6,
-        });
-        ghLastLiveSpawn[bi] = liveNow;
-        ghLastAnySpawn = liveNow;
-      }
-    }
-    const cutoff = liveNow - GH_LOOKBACK - GH_NOTE_DUR;
-    while (ghLiveNotes.length && ghLiveNotes[0].time < cutoff) ghLiveNotes.shift();
-    const liveWindow = ghLiveNotes.filter(n => n.time <= liveNow && n.time >= cutoff);
-    toRender.push(...liveWindow);
-  }
-
-  // ---- Draw notes ----
-  const h2x = n => Math.floor(n * 255).toString(16).padStart(2, '0');
-  const refTime = ghNotes ? now : t / 60;
-
-  for (const note of toRender) {
-    const dt_past = refTime - note.time;
-    const prog = progOfPast(dt_past);
-    if (prog < 0 || prog > 1.02) continue;
-
-    const y = yOfProg(Math.min(1, prog));
-    const nX = noteX(y, note.lane);
-    const nW = laneW(y) * 0.82;
-    const chipH = Math.max(5, nW * 0.28) * (note.big ? 1.5 : 1);
-    const yT = y - chipH / 2;
-    const yB = y + chipH / 2;
-    const color = p[note.lane % p.length];
-    const alpha = (0.65 + note.intensity * 0.35) * int;
-    const r = Math.min(nW * 0.22, chipH * 0.45, 8);
 
     ctx.save();
-    ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
-    ctx.shadowColor = color;
-
-    const ng = ctx.createLinearGradient(nX, yT, nX, yB);
-    ng.addColorStop(0,   color + h2x(alpha * 0.6));
-    ng.addColorStop(0.5, color + h2x(alpha));
-    ng.addColorStop(1,   color + h2x(alpha * 0.6));
-    ctx.fillStyle = ng;
-
-    ctx.beginPath();
-    ctx.moveTo(nX + r, yT);
-    ctx.lineTo(nX + nW - r, yT);
-    ctx.arcTo(nX + nW, yT, nX + nW, yT + r, r);
-    ctx.lineTo(nX + nW, yB - r);
-    ctx.arcTo(nX + nW, yB, nX + nW - r, yB, r);
-    ctx.lineTo(nX + r, yB);
-    ctx.arcTo(nX, yB, nX, yB - r, r);
-    ctx.lineTo(nX, yT + r);
-    ctx.arcTo(nX, yT, nX + r, yT, r);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff' + h2x(0.25 + note.intensity * 0.2);
-    ctx.fillRect(nX + r, yT + 1, nW - r * 2, Math.min(2, chipH * 0.3));
+    const hGrad = ctx.createRadialGradient(
+        cx,
+        horizonY,
+        0,
+        cx,
+        horizonY,
+        W * 0.5,
+    );
+    hGrad.addColorStop(
+        0,
+        p[1] +
+            Math.floor(b.mid * 40)
+                .toString(16)
+                .padStart(2, "0"),
+    );
+    hGrad.addColorStop(1, "transparent");
+    ctx.fillStyle = hGrad;
+    ctx.fillRect(0, horizonY - 30, W, 80);
     ctx.restore();
-  }
 
-  // ---- Fret buttons ----
-  const fretBtnY = fretY;
-  const fretBtnR = laneW(fretY) * 0.36;
-  const BAND_BINS2 = [[0, 8], [8, 20], [20, 50], [50, 90], [90, 128]];
-
-  for (let lane = 0; lane < GH_LANES; lane++) {
-    const bx = noteX(fretY, lane) + laneW(fretY) * 0.5;
-    const color = p[lane % p.length];
-
-    let hit = 0;
-    for (const n of toRender) {
-      if (n.lane !== lane) continue;
-      const dist = Math.abs(n.time - refTime);
-      if (dist < 0.18) hit = Math.max(hit, 1 - dist / 0.18);
+    if (ghNotes === null && !fileAudioActive) {
+        ctx.save();
+        ctx.fillStyle = "#ffffff18";
+        ctx.font = `12px 'Space Mono', monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("load a track to analyze", cx, H * 0.5);
+        ctx.restore();
     }
-    const liveVal = avg(freqSmooth, ...BAND_BINS2[lane]) / 255;
-    const glow = Math.max(hit, liveVal * 0.45);
-
-    ctx.save();
-    ctx.shadowBlur = 15 + glow * 35;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + Math.floor((0.35 + glow * 0.65) * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = 2 + glow * 3;
-    ctx.beginPath();
-    ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
-    ctx.stroke();
-    if (glow > 0.08) {
-      ctx.fillStyle = color + Math.floor(glow * 0.55 * 255).toString(16).padStart(2, '0');
-      ctx.beginPath();
-      ctx.arc(bx, fretBtnY, fretBtnR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = color + Math.floor((0.3 + glow * 0.7) * 255).toString(16).padStart(2, '0');
-    ctx.beginPath();
-    ctx.arc(bx, fretBtnY, fretBtnR * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // ---- Fret line ----
-  ctx.save();
-  ctx.strokeStyle = '#ffffff28';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(roadL(fretY), fretY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.stroke();
-  ctx.strokeStyle = p[0] + Math.floor(b.total * 80).toString(16).padStart(2, '0');
-  ctx.lineWidth = 3 + b.bass * 6;
-  ctx.shadowBlur = params.glow * 0.4;
-  ctx.shadowColor = p[0];
-  ctx.beginPath();
-  ctx.moveTo(roadL(fretY), fretY);
-  ctx.lineTo(roadL(fretY) + fretW, fretY);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  const hGrad = ctx.createRadialGradient(cx, horizonY, 0, cx, horizonY, W * 0.5);
-  hGrad.addColorStop(0, p[1] + Math.floor(b.mid * 40).toString(16).padStart(2, '0'));
-  hGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = hGrad;
-  ctx.fillRect(0, horizonY - 30, W, 80);
-  ctx.restore();
-
-  if (ghNotes === null && !fileAudioActive) {
-    ctx.save();
-    ctx.fillStyle = '#ffffff18';
-    ctx.font = `12px 'Space Mono', monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('load a track to analyze', cx, H * 0.5);
-    ctx.restore();
-  }
 }
 
 // ---- Vortex ----
 let vortexAngle = 0;
 
 function drawVortex(b) {
-  const p = getPalette();
-  const spd = params.speed / 50;
-  const int = params.intensity / 50;
-  const cx = W / 2, cy = H / 2;
-  const lineCount = Math.floor(24 + params.density);
-  const maxLen = Math.min(W, H) * 0.52 * int;
+    const p = getPalette();
+    const spd = params.speed / 50;
+    const int = params.intensity / 50;
+    const cx = W / 2,
+        cy = H / 2;
+    const lineCount = Math.floor(24 + params.density);
+    const maxLen = Math.min(W, H) * 0.52 * int;
 
-  vortexAngle += 0.008 * spd * (1 + b.bass * 4 + b.mid * 1.5);
+    vortexAngle += 0.008 * spd * (1 + b.bass * 4 + b.mid * 1.5);
 
-  for (let i = 0; i < lineCount; i++) {
-    const fi = Math.floor((i / lineCount) * 128);
-    const val = freqSmooth[fi] / 255;
-    const base = (i / lineCount) * Math.PI * 2 + vortexAngle;
-    const twist = val * Math.PI * 0.7 * (1 + b.bass * 0.5);
-    const len = 30 + val * (maxLen - 30);
-    const color = p[i % p.length];
-    const alpha = 0.2 + val * 0.8;
-    ctx.save();
-    ctx.shadowBlur = params.glow * 0.35;
-    ctx.shadowColor = color;
-    ctx.strokeStyle = color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
-    ctx.lineWidth = 1 + val * 3 + b.bass * 1.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(base + twist) * len, cy + Math.sin(base + twist) * len);
-    ctx.stroke();
-    ctx.restore();
-  }
+    for (let i = 0; i < lineCount; i++) {
+        const fi = Math.floor((i / lineCount) * 128);
+        const val = freqSmooth[fi] / 255;
+        const base = (i / lineCount) * Math.PI * 2 + vortexAngle;
+        const twist = val * Math.PI * 0.7 * (1 + b.bass * 0.5);
+        const len = 30 + val * (maxLen - 30);
+        const color = p[i % p.length];
+        const alpha = 0.2 + val * 0.8;
+        ctx.save();
+        ctx.shadowBlur = params.glow * 0.35;
+        ctx.shadowColor = color;
+        ctx.strokeStyle =
+            color +
+            Math.floor(alpha * 255)
+                .toString(16)
+                .padStart(2, "0");
+        ctx.lineWidth = 1 + val * 3 + b.bass * 1.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(
+            cx + Math.cos(base + twist) * len,
+            cy + Math.sin(base + twist) * len,
+        );
+        ctx.stroke();
+        ctx.restore();
+    }
 }

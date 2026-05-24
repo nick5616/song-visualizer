@@ -285,12 +285,17 @@ input[type=range]::-webkit-slider-thumb {
 .color-grid {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
 }
+.color-grid::-webkit-scrollbar { display: none; }
 
 .color-swatch {
   width: 28px;
   height: 28px;
+  flex-shrink: 0;
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid transparent;
