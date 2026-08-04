@@ -1,54 +1,56 @@
-const canvas = document.getElementById("viz");
-const ctx = canvas.getContext("2d");
-const W = canvas.width,
-    H = canvas.height;
+export const canvas = document.getElementById("viz");
+export const ctx = canvas.getContext("2d");
+export const W = canvas.width;
+export const H = canvas.height;
 
-let mode = "waveform";
-let palette = "cyber";
-let bg = "trail";
-let params = {
-    intensity: 50,
-    density: 40,
-    speed: 50,
-    sensitivity: 60,
-    glow: 60,
+export const state = {
+    mode: "waveform",
+    palette: "cyber",
+    bg: "trail",
+    params: {
+        intensity: 50,
+        density: 40,
+        speed: 50,
+        sensitivity: 60,
+        glow: 60,
+    },
+    audioData: new Uint8Array(128).fill(0),
+    freqSmooth: new Float32Array(128).fill(0),
+    freqLo: 0,
+    freqHi: 127,
+
+    analyser: null,
+    audioCtx: null,
+    micSource: null,
+    micStream: null,
+    micActive: false,
+
+    fileAudioActive: false,
+    audioBuffer: null,
+    fileSource: null,
+    fileOffset: 0,
+    fileStartedAt: 0,
+    filePlaying: false,
+
+    audioDestination: null,
+    audioSyncDelay: null,
+    mediaRecorder: null,
+    recordedChunks: [],
+    isRecording: false,
+
+    t: 0,
+
+    ghNotes: null, // null = not yet analyzed, [] or [...] = analyzed
+    ghLiveNotes: [],
+    ghBandSmooth: new Float32Array(5).fill(0),
+    ghLastLiveSpawn: new Float32Array(5).fill(-999),
+
+    selectedModes: ["waveform"],
+    multiSelect: false,
+    cycleEnabled: false,
+    cycleInterval: 8,
+    beatSwitchEnabled: false,
+    cycleFrameCount: 0,
+    lastBassLevel: 0,
+    beatCooldownFrames: 0,
 };
-let audioData = new Uint8Array(128).fill(0);
-let freqSmooth = new Float32Array(128).fill(0);
-let freqLo = 0;
-let freqHi = 127;
-
-let analyser = null;
-let audioCtx = null;
-let micSource = null;
-let micStream = null;
-let micActive = false;
-
-let fileAudioActive = false;
-let audioBuffer = null;
-let fileSource = null;
-let fileOffset = 0;
-let fileStartedAt = 0;
-let filePlaying = false;
-
-let audioDestination = null;
-let audioSyncDelay = null;
-let mediaRecorder = null;
-let recordedChunks = [];
-let isRecording = false;
-
-let t = 0;
-
-let ghNotes = null;      // null = not yet analyzed, [] or [...] = analyzed
-let ghLiveNotes = [];
-let ghBandSmooth = new Float32Array(5).fill(0);
-let ghLastLiveSpawn = new Float32Array(5).fill(-999);
-
-let selectedModes = ['waveform'];
-let multiSelect = false;
-let cycleEnabled = false;
-let cycleInterval = 8;
-let beatSwitchEnabled = false;
-let cycleFrameCount = 0;
-let lastBassLevel = 0;
-let beatCooldownFrames = 0;

@@ -7,7 +7,7 @@
   --accent: #00ffaa;
   --accent2: #ff2d6e;
   --text: #e0e0e0;
-  --muted: #555;
+  --muted: #888;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

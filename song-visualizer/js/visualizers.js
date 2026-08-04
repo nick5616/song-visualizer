@@ -1,12 +1,5 @@
-// Helpers
-function lerp(a, b, t) {
-    return a + (b - a) * t;
-}
-function avg(arr, s, e) {
-    let sum = 0;
-    for (let i = s; i < e; i++) sum += arr[i];
-    return sum / (e - s);
-}
+import { state, canvas, ctx, W, H } from "./state.js";
+import { lerp, avg } from "./utils.js";
 
 const palettes = {
     cyber:     ["#00ffaa", "#00ccff", "#ff2d6e", "#ff77aa"],
@@ -32,7 +25,7 @@ const palettes = {
 };
 
 function getPalette() {
-    return palettes[palette];
+    return palettes[state.palette];
 }
 function rndColor() {
     const p = getPalette();
@@ -44,8 +37,8 @@ const MAX_PARTICLES = 300;
 let particles = [];
 
 function spawnParticle(b) {
-    const spd = params.speed / 50;
-    const dens = params.density / 60;
+    const spd = state.params.speed / 50;
+    const dens = state.params.density / 60;
     const count = Math.floor((b.bass * 4 + b.mid * 3 + b.high * 2) * dens + 1);
     for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -64,9 +57,9 @@ function spawnParticle(b) {
     }
 }
 
-function drawParticles(b) {
+export function drawParticles(b) {
     spawnParticle(b);
-    const glow = params.glow / 100;
+    const glow = state.params.glow / 100;
     const trailMax = Math.floor(3 + b.high * 5);
 
     // Update all particles first
@@ -124,25 +117,25 @@ function drawParticles(b) {
 }
 
 // ---- Waveform ----
-function drawWaveform(b) {
+export function drawWaveform(b) {
     const p = getPalette();
     const cols = [p[0], p[1], p[2]];
     const offsets = [0, 20 + b.mid * 90, -(20 + b.high * 70)];
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
 
     for (let c = 0; c < cols.length; c++) {
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowBlur = state.params.glow * 0.4;
         ctx.shadowColor = cols[c];
         ctx.strokeStyle = cols[c] + (c === 0 ? "ff" : "99");
         ctx.lineWidth = c === 0 ? 3 : 1.5;
         ctx.beginPath();
         for (let x = 0; x < W; x++) {
             const i = Math.floor((x / W) * 128);
-            const amp = (freqSmooth[i] / 255) * H * 0.35 * int;
-            const wave = Math.sin(x * 0.01 + t * spd * 2 + c * 1.2) * amp;
-            const wave2 = Math.sin(x * 0.007 + t * spd * 1.5 + c) * amp * 0.5;
+            const amp = (state.freqSmooth[i] / 255) * H * 0.35 * int;
+            const wave = Math.sin(x * 0.01 + state.t * spd * 2 + c * 1.2) * amp;
+            const wave2 = Math.sin(x * 0.007 + state.t * spd * 1.5 + c) * amp * 0.5;
             const y = H / 2 + offsets[c] + wave + wave2;
             x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
@@ -153,13 +146,13 @@ function drawWaveform(b) {
 
 // ---- Geometry ----
 let geoAngle = 0;
-function drawGeometry(b) {
+export function drawGeometry(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
-    const spd = params.speed / 50;
+    const int = state.params.intensity / 50;
+    const spd = state.params.speed / 50;
     geoAngle += 0.005 * spd * (1 + b.bass * 2 + b.mid * 1.5);
 
-    const shapes = Math.floor(3 + params.density / 20);
+    const shapes = Math.floor(3 + state.params.density / 20);
     const cx = W / 2,
         cy = H / 2;
 
@@ -171,7 +164,7 @@ function drawGeometry(b) {
         const alpha = 0.6 - s * 0.08;
 
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.5;
+        ctx.shadowBlur = state.params.glow * 0.5;
         ctx.shadowColor = color;
         ctx.strokeStyle =
             color +
@@ -183,7 +176,7 @@ function drawGeometry(b) {
         for (let v = 0; v <= sides; v++) {
             const a = (v / sides) * Math.PI * 2 + phase;
             const perturbAmp = 0.06 + b.mid * 0.1 + b.high * 0.22;
-            const r = radius * (1 + Math.sin(a * 3 + t * 0.05) * perturbAmp);
+            const r = radius * (1 + Math.sin(a * 3 + state.t * 0.05) * perturbAmp);
             const x = cx + Math.cos(a) * r;
             const y = cy + Math.sin(a) * r;
             v === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
@@ -213,21 +206,21 @@ function drawGeometry(b) {
 
 // ---- Tunnel ----
 let tunnelRings = [];
-function drawTunnel(b) {
+export function drawTunnel(b) {
     const p = getPalette();
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2,
         cy = H / 2;
 
     if (
-        t % Math.max(1, Math.floor(10 / spd)) === 0 ||
+        state.t % Math.max(1, Math.floor(10 / spd)) === 0 ||
         b.bass > 0.5 ||
         b.high > 0.55
     ) {
         tunnelRings.push({
             r: 0,
-            color: p[Math.floor(t / 10) % p.length],
+            color: p[Math.floor(state.t / 10) % p.length],
             alpha: 1,
         });
     }
@@ -241,7 +234,7 @@ function drawTunnel(b) {
         }
 
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowBlur = state.params.glow * 0.4;
         ctx.shadowColor = ring.color;
         ctx.strokeStyle =
             ring.color +
@@ -266,24 +259,24 @@ function drawTunnel(b) {
 }
 
 // ---- Lissajous ----
-function drawLissajous(b) {
+export function drawLissajous(b) {
     const p = getPalette();
-    const spd = params.speed / 50;
-    const int = params.intensity / 100;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 100;
     const cx = W / 2,
         cy = H / 2;
     const ax = W * 0.4 * (0.5 + int * 0.5 + b.bass * 0.25 + b.high * 0.12);
     const ay = H * 0.35 * (0.5 + int * 0.5 + b.mid * 0.28 + b.high * 0.1);
     const phaseDrift = b.high * 0.5;
-    const freqX = 2 + Math.floor(params.density / 25);
-    const freqY = 3 + Math.floor(params.density / 30);
+    const freqX = 2 + Math.floor(state.params.density / 25);
+    const freqY = 3 + Math.floor(state.params.density / 30);
     const steps = 500;
 
     for (let layer = 0; layer < 3; layer++) {
         const color = p[layer % p.length];
         const phaseOff = layer * 0.5;
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowBlur = state.params.glow * 0.4;
         ctx.shadowColor = color;
         ctx.strokeStyle = color + (layer === 0 ? "cc" : "55");
         ctx.lineWidth = 1.5 - layer * 0.4;
@@ -294,9 +287,9 @@ function drawLissajous(b) {
                 cx +
                 ax *
                     Math.sin(
-                        freqX * theta + t * 0.008 * spd + phaseOff + phaseDrift,
+                        freqX * theta + state.t * 0.008 * spd + phaseOff + phaseDrift,
                     );
-            const y = cy + ay * Math.sin(freqY * theta + t * 0.006 * spd);
+            const y = cy + ay * Math.sin(freqY * theta + state.t * 0.006 * spd);
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
         ctx.stroke();
@@ -305,16 +298,16 @@ function drawLissajous(b) {
 }
 
 // ---- Spectrum Bars ----
-function drawBars(b) {
+export function drawBars(b) {
     const p = getPalette();
-    const barCount = Math.floor(20 + params.density * 0.6);
+    const barCount = Math.floor(20 + state.params.density * 0.6);
     const barW = W / barCount;
-    const int = params.intensity / 50;
-    const glow = params.glow / 100;
+    const int = state.params.intensity / 50;
+    const glow = state.params.glow / 100;
 
     for (let i = 0; i < barCount; i++) {
         const fi = Math.floor((i / barCount) * 128);
-        const val = freqSmooth[fi] / 255;
+        const val = state.freqSmooth[fi] / 255;
         const barH = val * H * 0.8 * int;
         const color = p[i % p.length];
 
@@ -334,10 +327,10 @@ function drawBars(b) {
 }
 
 // ---- Background ----
-function drawBackground(b) {
-    switch (bg) {
+export function drawBackground(b) {
+    switch (state.bg) {
         case "trail": {
-            const fade = 0.12 + (1 - params.intensity / 100) * 0.1;
+            const fade = 0.12 + (1 - state.params.intensity / 100) * 0.1;
             ctx.fillStyle = `rgba(0,0,0,${fade})`;
             ctx.fillRect(0, 0, W, H);
             break;
@@ -385,26 +378,26 @@ function drawBackground(b) {
     }
 }
 
-function updateFreqBar(b) {
+export function updateFreqBar(b) {
     const bar = document.getElementById("freqBar");
     bar.style.transform = `scaleX(${Math.min(1, b.total * 3)})`;
     bar.style.opacity = 0.2 + b.bass * 0.6;
 }
 
 // ---- Radial ----
-function drawRadial(b) {
+export function drawRadial(b) {
     const p = getPalette();
     const cx = W / 2,
         cy = H / 2;
-    const barCount = Math.floor(60 + params.density * 2);
+    const barCount = Math.floor(60 + state.params.density * 2);
     const innerR = 55 + b.bass * 50;
-    const maxLen = H * 0.35 * (params.intensity / 50);
-    const glow = params.glow / 100;
-    const rotOff = t * 0.002 * (params.speed / 50);
+    const maxLen = H * 0.35 * (state.params.intensity / 50);
+    const glow = state.params.glow / 100;
+    const rotOff = state.t * 0.002 * (state.params.speed / 50);
 
     for (let i = 0; i < barCount; i++) {
         const fi = Math.floor((i / barCount) * 128);
-        const val = freqSmooth[fi] / 255;
+        const val = state.freqSmooth[fi] / 255;
         const angle = (i / barCount) * Math.PI * 2 + rotOff - Math.PI / 2;
         const len = val * maxLen;
         const color = p[i % p.length];
@@ -452,20 +445,20 @@ function drawRadial(b) {
 }
 
 // ---- Helix ----
-function drawHelix(b) {
+export function drawHelix(b) {
     const p = getPalette();
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2;
     const amp = W * 0.28 * int * (0.6 + b.bass * 0.4 + b.mid * 0.2);
-    const turns = 3 + params.density / 40;
+    const turns = 3 + state.params.density / 40;
     const steps = 300;
 
     for (let strand = 0; strand < 2; strand++) {
         const phaseOff = strand * Math.PI;
         const color = p[strand % p.length];
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowBlur = state.params.glow * 0.4;
         ctx.shadowColor = color;
         ctx.strokeStyle = color + "dd";
         ctx.lineWidth = 2 + b.bass * 3 + b.mid * 1.5;
@@ -474,9 +467,9 @@ function drawHelix(b) {
             const frac = i / steps;
             const y = frac * H;
             const theta =
-                frac * Math.PI * 2 * turns + t * 0.025 * spd + phaseOff;
+                frac * Math.PI * 2 * turns + state.t * 0.025 * spd + phaseOff;
             const fi = Math.floor(frac * 127);
-            const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
+            const ampMod = 0.7 + (state.freqSmooth[fi] / 255) * 0.6;
             const x = cx + Math.cos(theta) * amp * ampMod;
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
@@ -488,16 +481,16 @@ function drawHelix(b) {
     for (let i = 0; i < rungCount; i++) {
         const frac = i / rungCount;
         const y = frac * H;
-        const theta = frac * Math.PI * 2 * turns + t * 0.025 * spd;
+        const theta = frac * Math.PI * 2 * turns + state.t * 0.025 * spd;
         const fi = Math.floor(frac * 127);
-        const ampMod = 0.7 + (freqSmooth[fi] / 255) * 0.6;
+        const ampMod = 0.7 + (state.freqSmooth[fi] / 255) * 0.6;
         const x1 = cx + Math.cos(theta) * amp * ampMod;
         const x2 = cx + Math.cos(theta + Math.PI) * amp * ampMod;
-        const val = freqSmooth[fi] / 255;
+        const val = state.freqSmooth[fi] / 255;
         const color = p[(i + 1) % p.length];
         ctx.save();
         ctx.globalAlpha = 0.2 + val * 0.8;
-        ctx.shadowBlur = params.glow * 0.3;
+        ctx.shadowBlur = state.params.glow * 0.3;
         ctx.shadowColor = color;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1 + val * 2.5;
@@ -524,7 +517,7 @@ function randomStar() {
     };
 }
 
-function drawStarfield(b) {
+export function drawStarfield(b) {
     if (stars.length === 0) {
         stars = Array.from({ length: MAX_STARS }, () => {
             const s = randomStar();
@@ -533,8 +526,8 @@ function drawStarfield(b) {
             return s;
         });
     }
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2,
         cy = H / 2;
     const speed = (1.5 + b.bass * 10 + b.mid * 5) * spd;
@@ -559,7 +552,7 @@ function drawStarfield(b) {
 
         const brightness = (1 - s.z / W) * int;
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.3;
+        ctx.shadowBlur = state.params.glow * 0.3;
         ctx.shadowColor = s.color;
         ctx.strokeStyle =
             s.color +
@@ -581,14 +574,14 @@ const TERRAIN_ROWS = 36;
 let terrainRows = [];
 let terrainTick = 0;
 
-function drawTerrain(b) {
+export function drawTerrain(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
-    const spd = params.speed / 50;
+    const int = state.params.intensity / 50;
+    const spd = state.params.speed / 50;
 
     terrainTick++;
     if (terrainTick % Math.max(1, Math.floor(4 / spd)) === 0) {
-        terrainRows.unshift(new Float32Array(freqSmooth));
+        terrainRows.unshift(new Float32Array(state.freqSmooth));
         if (terrainRows.length > TERRAIN_ROWS) terrainRows.pop();
     }
     if (terrainRows.length === 0) return;
@@ -610,7 +603,7 @@ function drawTerrain(b) {
 
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.shadowBlur = params.glow * 0.25 * (1 - depth);
+        ctx.shadowBlur = state.params.glow * 0.25 * (1 - depth);
         ctx.shadowColor = color;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1 + (1 - depth) * 2.5;
@@ -628,22 +621,22 @@ function drawTerrain(b) {
 }
 
 // ---- Aurora ----
-function drawAurora(b) {
+export function drawAurora(b) {
     const p = getPalette();
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
-    const layers = Math.floor(5 + params.density / 20);
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
+    const layers = Math.floor(5 + state.params.density / 20);
 
     for (let layer = 0; layer < layers; layer++) {
         const fi = Math.floor((layer / layers) * 80);
-        const val = freqSmooth[fi] / 255;
+        const val = state.freqSmooth[fi] / 255;
         const color = p[layer % p.length];
-        const waveX = Math.sin(layer * 1.3 + t * 0.015 * spd) * W * 0.07;
+        const waveX = Math.sin(layer * 1.3 + state.t * 0.015 * spd) * W * 0.07;
         const x = W * (layer / layers) + waveX;
         const colW = (W / layers) * (0.55 + val * 0.9);
         const hFrac = 0.18 + val * 0.72 * int;
         const yTop =
-            H * 0.02 + Math.sin(layer * 0.9 + t * 0.012 * spd) * H * 0.06;
+            H * 0.02 + Math.sin(layer * 0.9 + state.t * 0.012 * spd) * H * 0.06;
         const curtainH = H * hFrac;
         const alpha = 0.07 + val * 0.55;
         const alphaHex = (n) =>
@@ -658,7 +651,7 @@ function drawAurora(b) {
         grad.addColorStop(1, "transparent");
 
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.8;
+        ctx.shadowBlur = state.params.glow * 0.8;
         ctx.shadowColor = color;
         ctx.fillStyle = grad;
         ctx.fillRect(x - colW * 0.15, yTop, colW, curtainH);
@@ -667,13 +660,13 @@ function drawAurora(b) {
 }
 
 // ---- Kaleidoscope ----
-function drawKaleidoscope(b) {
+export function drawKaleidoscope(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
-    const spd = params.speed / 50;
+    const int = state.params.intensity / 50;
+    const spd = state.params.speed / 50;
     const cx = W / 2,
         cy = H / 2;
-    const segments = Math.max(4, Math.round(params.density / 12) * 2 + 4);
+    const segments = Math.max(4, Math.round(state.params.density / 12) * 2 + 4);
     const sliceAngle = (Math.PI * 2) / segments;
     const radius = Math.min(W, H) * 0.48;
 
@@ -683,7 +676,7 @@ function drawKaleidoscope(b) {
         ctx.translate(cx, cy);
         ctx.rotate(s * sliceAngle);
         if (s % 2 === 1) ctx.scale(1, -1);
-        ctx.shadowBlur = params.glow * 0.4;
+        ctx.shadowBlur = state.params.glow * 0.4;
         ctx.shadowColor = color;
         ctx.strokeStyle = color + "aa";
         ctx.lineWidth = 1.5 + b.bass * 2.5;
@@ -691,10 +684,10 @@ function drawKaleidoscope(b) {
         const pts = 80;
         for (let i = 0; i <= pts; i++) {
             const fi = Math.floor((i / pts) * 64);
-            const val = freqSmooth[fi] / 255;
+            const val = state.freqSmooth[fi] / 255;
             const r = (i / pts) * radius;
             const lateralOff =
-                Math.sin(i * 0.22 + t * 0.03 * spd + s) * val * 35 * int;
+                Math.sin(i * 0.22 + state.t * 0.03 * spd + s) * val * 35 * int;
             const x = Math.cos(val * 0.4 * int) * r;
             const y = Math.sin(val * 0.4 * int) * r + lateralOff;
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
@@ -707,10 +700,10 @@ function drawKaleidoscope(b) {
 // ---- Ripples ----
 let ripples = [];
 
-function drawRipples(b) {
+export function drawRipples(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
-    const spd = params.speed / 50;
+    const int = state.params.intensity / 50;
+    const spd = state.params.speed / 50;
     const cx = W / 2,
         cy = H / 2;
 
@@ -736,7 +729,7 @@ function drawRipples(b) {
             continue;
         }
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.35;
+        ctx.shadowBlur = state.params.glow * 0.35;
         ctx.shadowColor = rpl.color;
         ctx.strokeStyle =
             rpl.color +
@@ -762,15 +755,15 @@ let ghLaneLiveNote = new Array(5).fill(null);
 let ghLaneSustain  = new Int32Array(5).fill(0);
 
 function ghSongTime() {
-    if (!audioCtx) return t / 60;
-    if (fileAudioActive && fileStartedAt > 0)
-        return audioCtx.currentTime - fileStartedAt;
-    return fileOffset || 0;
+    if (!state.audioCtx) return state.t / 60;
+    if (state.fileAudioActive && state.fileStartedAt > 0)
+        return state.audioCtx.currentTime - state.fileStartedAt;
+    return state.fileOffset || 0;
 }
 
-function drawGuitarHero(b) {
+export function drawGuitarHero(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2;
     const now = ghSongTime();
 
@@ -861,26 +854,26 @@ function drawGuitarHero(b) {
     // ---- Collect notes to render ----
     const toRender = [];
 
-    if (ghNotes && ghNotes.length > 0) {
+    if (state.ghNotes && state.ghNotes.length > 0) {
         // Binary-search window [now - 0.3, now + GH_LOOKAHEAD + 0.1]
         const tLo = now - 0.3,
             tHi = now + GH_LOOKAHEAD + 0.1;
         let lo = 0,
-            hi = ghNotes.length - 1;
+            hi = state.ghNotes.length - 1;
         while (lo < hi) {
             const m = (lo + hi) >> 1;
-            ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
+            state.ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
         }
-        for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++)
-            toRender.push(ghNotes[i]);
-    } else if (ghNotes === null) {
+        for (let i = lo; i < state.ghNotes.length && state.ghNotes[i].time <= tHi; i++)
+            toRender.push(state.ghNotes[i]);
+    } else if (state.ghNotes === null) {
         const BAND_BINS = [[0,8],[8,20],[20,50],[50,90],[90,128]];
-        const liveNow = t / 60;
+        const liveNow = state.t / 60;
         for (let bi = 0; bi < GH_LANES; bi++) {
             const [blo, bhi] = BAND_BINS[bi];
-            const energy = avg(freqSmooth, blo, bhi) / 255;
-            ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
-            const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+            const energy = avg(state.freqSmooth, blo, bhi) / 255;
+            state.ghBandSmooth[bi] = lerp(state.ghBandSmooth[bi], energy, 0.05);
+            const thresh = Math.max(0.32, state.ghBandSmooth[bi] * 2.4);
             if (energy > thresh) {
                 ghLaneSustain[bi] = GH_SUSTAIN_FRAMES;
                 if (!ghLaneLiveNote[bi]) {
@@ -898,12 +891,12 @@ function drawGuitarHero(b) {
                 ghLaneSustain[bi]--;
                 if (ghLaneLiveNote[bi]) ghLaneLiveNote[bi].endTime = liveNow + GH_LOOKAHEAD;
             } else if (ghLaneLiveNote[bi]) {
-                ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
+                state.ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
                 ghLaneLiveNote[bi] = null;
             }
         }
-        ghLiveNotes = ghLiveNotes.filter(n => n.startTime >= liveNow - GH_LINGER_DUR - 0.2);
-        toRender.push(...ghLiveNotes);
+        state.ghLiveNotes = state.ghLiveNotes.filter(n => n.startTime >= liveNow - GH_LINGER_DUR - 0.2);
+        toRender.push(...state.ghLiveNotes);
         for (let bi = 0; bi < GH_LANES; bi++) {
             if (ghLaneLiveNote[bi]) toRender.push(ghLaneLiveNote[bi]);
         }
@@ -911,7 +904,7 @@ function drawGuitarHero(b) {
 
     // ---- Draw notes ----
     const h2x = (n) => Math.floor(n * 255).toString(16).padStart(2, "0");
-    const refTime = ghNotes ? now : t / 60;
+    const refTime = state.ghNotes ? now : state.t / 60;
 
     for (const note of toRender) {
         const dt = (note.startTime ?? note.time) - refTime;
@@ -930,7 +923,7 @@ function drawGuitarHero(b) {
         const r      = Math.min(nW * 0.22, chipH * 0.45, 8);
 
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1) * (1 + linger * 0.8);
+        ctx.shadowBlur = state.params.glow * 0.55 * (note.big ? 1.5 : 1) * (1 + linger * 0.8);
         ctx.shadowColor = color;
 
         const ng = ctx.createLinearGradient(nX, yT, nX, yB);
@@ -986,7 +979,7 @@ function drawGuitarHero(b) {
             [50, 90],
             [90, 128],
         ];
-        const liveVal = avg(freqSmooth, ...BAND_BINS[lane]) / 255;
+        const liveVal = avg(state.freqSmooth, ...BAND_BINS[lane]) / 255;
         const glow = Math.max(hit, liveVal * 0.45);
 
         ctx.save();
@@ -1044,7 +1037,7 @@ function drawGuitarHero(b) {
             .toString(16)
             .padStart(2, "0");
     ctx.lineWidth = 3 + b.bass * 6;
-    ctx.shadowBlur = params.glow * 0.4;
+    ctx.shadowBlur = state.params.glow * 0.4;
     ctx.shadowColor = p[0];
     ctx.beginPath();
     ctx.moveTo(roadL(fretY), fretY);
@@ -1075,7 +1068,7 @@ function drawGuitarHero(b) {
     ctx.restore();
 
     // ---- Analyzing overlay ----
-    if (ghNotes === null && !fileAudioActive) {
+    if (state.ghNotes === null && !state.fileAudioActive) {
         ctx.save();
         ctx.fillStyle = "#ffffff18";
         ctx.font = `12px 'Space Mono', monospace`;
@@ -1085,9 +1078,9 @@ function drawGuitarHero(b) {
     }
 }
 
-function drawGuitarHeroReverse(b) {
+export function drawGuitarHeroReverse(b) {
     const p = getPalette();
-    const int = params.intensity / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2;
     const now = ghSongTime();
 
@@ -1171,25 +1164,25 @@ function drawGuitarHeroReverse(b) {
     // ---- Collect notes to render ----
     const toRender = [];
 
-    if (ghNotes && ghNotes.length > 0) {
+    if (state.ghNotes && state.ghNotes.length > 0) {
         const tLo = now - GH_LOOKBACK - GH_NOTE_DUR;
         const tHi = now + GH_NOTE_DUR;
         let lo = 0,
-            hi = ghNotes.length - 1;
+            hi = state.ghNotes.length - 1;
         while (lo < hi) {
             const m = (lo + hi) >> 1;
-            ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
+            state.ghNotes[m].time < tLo ? (lo = m + 1) : (hi = m);
         }
-        for (let i = lo; i < ghNotes.length && ghNotes[i].time <= tHi; i++)
-            toRender.push(ghNotes[i]);
-    } else if (ghNotes === null) {
-        const liveNow = t / 60;
+        for (let i = lo; i < state.ghNotes.length && state.ghNotes[i].time <= tHi; i++)
+            toRender.push(state.ghNotes[i]);
+    } else if (state.ghNotes === null) {
+        const liveNow = state.t / 60;
         const BAND_BINS = [[0,8],[8,20],[20,50],[50,90],[90,128]];
         for (let bi = 0; bi < GH_LANES; bi++) {
             const [blo, bhi] = BAND_BINS[bi];
-            const energy = avg(freqSmooth, blo, bhi) / 255;
-            ghBandSmooth[bi] = lerp(ghBandSmooth[bi], energy, 0.05);
-            const thresh = Math.max(0.32, ghBandSmooth[bi] * 2.4);
+            const energy = avg(state.freqSmooth, blo, bhi) / 255;
+            state.ghBandSmooth[bi] = lerp(state.ghBandSmooth[bi], energy, 0.05);
+            const thresh = Math.max(0.32, state.ghBandSmooth[bi] * 2.4);
             if (energy > thresh) {
                 ghLaneSustain[bi] = GH_SUSTAIN_FRAMES;
                 if (!ghLaneLiveNote[bi]) {
@@ -1207,12 +1200,12 @@ function drawGuitarHeroReverse(b) {
                 ghLaneSustain[bi]--;
                 if (ghLaneLiveNote[bi]) ghLaneLiveNote[bi].endTime = liveNow;
             } else if (ghLaneLiveNote[bi]) {
-                ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
+                state.ghLiveNotes.push({ ...ghLaneLiveNote[bi] });
                 ghLaneLiveNote[bi] = null;
             }
         }
-        ghLiveNotes = ghLiveNotes.filter(n => n.endTime >= liveNow - GH_LOOKBACK - 0.2);
-        toRender.push(...ghLiveNotes.filter(n => n.endTime <= liveNow));
+        state.ghLiveNotes = state.ghLiveNotes.filter(n => n.endTime >= liveNow - GH_LOOKBACK - 0.2);
+        toRender.push(...state.ghLiveNotes.filter(n => n.endTime <= liveNow));
         for (let bi = 0; bi < GH_LANES; bi++) {
             if (ghLaneLiveNote[bi]) toRender.push(ghLaneLiveNote[bi]);
         }
@@ -1220,7 +1213,7 @@ function drawGuitarHeroReverse(b) {
 
     // ---- Draw notes ----
     const h2x = (n) => Math.floor(n * 255).toString(16).padStart(2, "0");
-    const refTime = ghNotes ? now : t / 60;
+    const refTime = state.ghNotes ? now : state.t / 60;
 
     for (const note of toRender) {
         const dtPast = refTime - (note.endTime ?? note.time);
@@ -1239,7 +1232,7 @@ function drawGuitarHeroReverse(b) {
         const r     = Math.min(nW * 0.22, chipH * 0.45, 8);
 
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.55 * (note.big ? 1.5 : 1);
+        ctx.shadowBlur = state.params.glow * 0.55 * (note.big ? 1.5 : 1);
         ctx.shadowColor = color;
 
         const ng = ctx.createLinearGradient(nX, yT, nX, yB);
@@ -1283,7 +1276,7 @@ function drawGuitarHeroReverse(b) {
             if (dtPastNear < 0 || dtPastNear > 0.3) continue;
             hit = Math.max(hit, 1 - dtPastNear / 0.3);
         }
-        const liveVal = avg(freqSmooth, ...BAND_BINS2[lane]) / 255;
+        const liveVal = avg(state.freqSmooth, ...BAND_BINS2[lane]) / 255;
         const glow = Math.max(hit, liveVal * 0.45);
 
         ctx.save();
@@ -1333,7 +1326,7 @@ function drawGuitarHeroReverse(b) {
             .toString(16)
             .padStart(2, "0");
     ctx.lineWidth = 3 + b.bass * 6;
-    ctx.shadowBlur = params.glow * 0.4;
+    ctx.shadowBlur = state.params.glow * 0.4;
     ctx.shadowColor = p[0];
     ctx.beginPath();
     ctx.moveTo(roadL(fretY), fretY);
@@ -1362,7 +1355,7 @@ function drawGuitarHeroReverse(b) {
     ctx.fillRect(0, horizonY - 30, W, 80);
     ctx.restore();
 
-    if (ghNotes === null && !fileAudioActive) {
+    if (state.ghNotes === null && !state.fileAudioActive) {
         ctx.save();
         ctx.fillStyle = "#ffffff18";
         ctx.font = `12px 'Space Mono', monospace`;
@@ -1375,27 +1368,27 @@ function drawGuitarHeroReverse(b) {
 // ---- Vortex ----
 let vortexAngle = 0;
 
-function drawVortex(b) {
+export function drawVortex(b) {
     const p = getPalette();
-    const spd = params.speed / 50;
-    const int = params.intensity / 50;
+    const spd = state.params.speed / 50;
+    const int = state.params.intensity / 50;
     const cx = W / 2,
         cy = H / 2;
-    const lineCount = Math.floor(24 + params.density);
+    const lineCount = Math.floor(24 + state.params.density);
     const maxLen = Math.min(W, H) * 0.52 * int;
 
     vortexAngle += 0.008 * spd * (1 + b.bass * 4 + b.mid * 1.5);
 
     for (let i = 0; i < lineCount; i++) {
         const fi = Math.floor((i / lineCount) * 128);
-        const val = freqSmooth[fi] / 255;
+        const val = state.freqSmooth[fi] / 255;
         const base = (i / lineCount) * Math.PI * 2 + vortexAngle;
         const twist = val * Math.PI * 0.7 * (1 + b.bass * 0.5);
         const len = 30 + val * (maxLen - 30);
         const color = p[i % p.length];
         const alpha = 0.2 + val * 0.8;
         ctx.save();
-        ctx.shadowBlur = params.glow * 0.35;
+        ctx.shadowBlur = state.params.glow * 0.35;
         ctx.shadowColor = color;
         ctx.strokeStyle =
             color +
@@ -1413,4 +1406,13 @@ function drawVortex(b) {
         ctx.stroke();
         ctx.restore();
     }
+}
+
+// ---- Mode reset (called externally when switching visualization modes) ----
+export function resetModeState() {
+    particles = [];
+    tunnelRings = [];
+    stars = [];
+    terrainRows = [];
+    ripples = [];
 }
