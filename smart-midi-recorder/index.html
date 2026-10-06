@@ -9,9 +9,19 @@
     body { background: #0a0a0c; }
     #root { min-height: 100vh; }
   </style>
+  <!-- Served as static files (no build step), so resolve bare imports via CDN and compile JSX in-browser -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1"
+    }
+  }
+  </script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="./main.jsx"></script>
+  <script type="text/babel" data-type="module" data-presets="react" src="./main.jsx"></script>
 </body>
 </html>
