@@ -1522,7 +1522,6 @@ function MidiMuse() {
           {producerStyle ? "MIDI·MUSE" : "Midi Muse"}
         </div>
         <div style={{ display:"flex", border:"1px solid #2a2a35", borderRadius:4 }}>
-          <button onClick={() => setView("producer")} style={{ padding:"6px 14px", fontSize:12, background:view==="producer"?"#2a2a40":"transparent", color:view==="producer"?"#fff":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>PRODUCE</button>
           <button onClick={() => setView("composer")} style={{ padding:"6px 14px", fontSize:12, background:view==="composer"?"#1a2a3a":"transparent", color:view==="composer"?"#e8a040":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>COMPOSE</button>
           <button onClick={() => setView("improv")} style={{ padding:"6px 14px", fontSize:12, background:view==="improv"?"#3a1a5a":"transparent", color:view==="improv"?"#fff":"#888", border:"none", cursor:"pointer", letterSpacing:"0.1em", fontFamily:UI_FONT }}>IMPROV</button>
         </div>
