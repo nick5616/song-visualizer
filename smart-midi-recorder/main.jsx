@@ -957,7 +957,7 @@ function MidiMuse() {
     if (xPx < PRODUCER_KEYBOARD_WIDTH) return null;
     const rowHeight = (canvasHeight / PITCH_RANGE) * ROLL_ROW_HEIGHT_SCALE;
     const timeAt = (xPx - PRODUCER_KEYBOARD_WIDTH + scrollX) / ROLL_PX_PER_SEC;
-    const pitch = KEYBOARD_START + PITCH_RANGE - Math.floor(yPx / rowHeight) - 1;
+    const pitch = KEYBOARD_START + Math.floor((canvasHeight - yPx) / rowHeight);
     const hit = notes.find((n) => n.pitch === pitch && n.startTime <= timeAt && n.endTime >= timeAt);
     if (!hit) return null;
     const startPx = hit.startTime * ROLL_PX_PER_SEC - scrollX + PRODUCER_KEYBOARD_WIDTH;
@@ -973,7 +973,8 @@ function MidiMuse() {
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
     if (x < PRODUCER_KEYBOARD_WIDTH) {
       const rowHeight = (rect.height / PITCH_RANGE) * ROLL_ROW_HEIGHT_SCALE;
-      const pitch = KEYBOARD_START + PITCH_RANGE - Math.floor(y / rowHeight) - 1;
+      // Rows are drawn bottom-up from the canvas bottom, so measure from there too
+      const pitch = KEYBOARD_START + Math.floor((rect.height - y) / rowHeight);
       if (pitch >= 0 && pitch <= 127) {
         handleNoteOn(pitch, 90);
         const up = () => { handleNoteOff(pitch); window.removeEventListener("mouseup", up); };
@@ -1421,7 +1422,7 @@ function MidiMuse() {
     if (x < PRODUCER_KEYBOARD_WIDTH) {
       const rollH = rect.height - COMPOSER_BRACKET_H;
       const rowH = (rollH / PITCH_RANGE) * ROLL_ROW_HEIGHT_SCALE;
-      const pitch = KEYBOARD_START + PITCH_RANGE - Math.floor((y - COMPOSER_BRACKET_H) / rowH) - 1;
+      const pitch = KEYBOARD_START + Math.floor((rect.height - y) / rowH);
       if (pitch >= KEYBOARD_START && pitch < KEYBOARD_END) {
         handleNoteOn(pitch, 90);
         const up = () => { handleNoteOff(pitch); window.removeEventListener("mouseup", up); };
